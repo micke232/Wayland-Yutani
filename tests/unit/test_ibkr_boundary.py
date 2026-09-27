@@ -39,3 +39,15 @@ def test_invalid_live_or_unallowlisted_gateway_never_connects(patch):
     with pytest.raises(ValueError):
         asyncio.run(IbkrBroker(settings, client).connect())
     client.connectAsync.assert_not_called()
+
+
+def test_reported_account_mismatch_disconnects_without_verification():
+    client = SimpleNamespace(
+        connectAsync=AsyncMock(), managedAccounts=lambda: ["DU-OTHER"], disconnect=Mock()
+    )
+    config = Settings(ibkr_account="DU-FIXTURE", account_allowlist=("DU-FIXTURE",))
+    broker = IbkrBroker(config, client)
+    with pytest.raises(ValueError):
+        asyncio.run(broker.connect())
+    assert not broker.verified
+    client.disconnect.assert_called_once()

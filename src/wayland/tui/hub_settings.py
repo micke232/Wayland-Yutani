@@ -9,6 +9,9 @@ def settings_text(data, directory):
         "  [C] Appearance · colours, preview, import, defaults\n\n"
         "## Trading\n  [G] Trading setup · model, paper account, data and risk limits\n"
         "  [H] Connections · OpenAI API and IBKR\n"
+        "  [B] "
+        + ("Disconnect" if data.get("trading", {}).get("broker_enabled") else "Connect")
+        + " IBKR paper (read-only)\n"
         "  [K] Entry kill switch: "
         + ("ON" if data.get("trading", {}).get("kill_switch") else "OFF")
         + "\n\n## Runtime\n  [D] Diagnostics\n\n"

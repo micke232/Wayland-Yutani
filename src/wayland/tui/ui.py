@@ -391,6 +391,11 @@ class Dashboard:
                     self.notice = "Trading settings saved"
                 elif action == "diagnostics":
                     self.panel, self.panel_scroll = diagnostics_text(result), 0
+                elif action == "broker_connection":
+                    self.data.setdefault("trading", {})["broker_enabled"] = result["enabled"]
+                    self.notice = (
+                        "Paper connection requested" if result["enabled"] else "Disconnect requested"
+                    )
                 elif action == "kill":
                     self.data.setdefault("trading", {})["kill_switch"] = result["enabled"]
                     self.notice = "Entry kill switch " + ("ON" if result["enabled"] else "OFF")
@@ -1178,7 +1183,7 @@ class Dashboard:
             for y, line in enumerate(panel_lines[self.panel_scroll : self.panel_scroll + h - 7], 4):
                 if is_help:
                     if self.panel == "HUB SETTINGS":
-                        for action in ("1", "2", "3", "D", "H", "M", "K", "G", "C"):
+                        for action in ("1", "2", "3", "D", "H", "B", "M", "K", "G", "C"):
                             if line.lstrip().startswith("[" + action + "]"):
                                 self.hub_hits.append((6, w - 4, y, action.lower()))
                     offset_x = 4
@@ -1243,7 +1248,11 @@ class Dashboard:
         self.panel, self.panel_scroll = "HUB SETTINGS", 0
 
     def hub_action(self, action):
-        if action == "m":
+        if action == "b":
+            self.submit(
+                "broker_connection", enabled=not self.data.get("trading", {}).get("broker_enabled", False)
+            )
+        elif action == "m":
             self.submit("app_settings", patch={"mouseEnabled": not self.mouse_enabled})
         elif action == "c":
             self.panel = "APPEARANCE"
@@ -1748,7 +1757,7 @@ class Dashboard:
                 "\r",
                 curses.KEY_ENTER,
             ):
-                actions = ["h", "m", "k", "g", "c", "d"]
+                actions = ["h", "b", "m", "k", "g", "c", "d"]
                 if key in ("\n", "\r", curses.KEY_ENTER):
                     self.hub_action(self.hub_selected)
                 else:
@@ -1780,6 +1789,8 @@ class Dashboard:
                 "D",
                 "h",
                 "H",
+                "b",
+                "B",
                 "m",
                 "M",
                 "k",

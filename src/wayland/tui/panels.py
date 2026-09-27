@@ -11,6 +11,43 @@ def trading_rows(data, view, width, wrap):
     t = data.get("trading", {})
     p = t.get("portfolio") or {}
     lines = []
+    observation = t.get("brokerObservation") or {}
+    inspection = observation.get("inspection") or {}
+    if view in ("files", "processes") and inspection:
+        lines = [
+            ("IBKR PAPER · READ ONLY", "accent"),
+            (observation.get("status", "Unknown") + " · " + observation.get("timestamp", ""), "muted"),
+            ("Execution reconciliation is incomplete; new orders remain blocked.", "warning"),
+        ]
+        if view == "files":
+            for position in inspection.get("positions", []):
+                lines += [
+                    ("", "base"),
+                    (position["symbol"] + " · contract " + str(position["con_id"]), "accent"),
+                    (
+                        "Quantity: "
+                        + str(position["quantity"])
+                        + " · Broker average cost: "
+                        + str(position["average_cost"]),
+                        "base",
+                    ),
+                    ("Maximum loss and strategy mapping not verified.", "warning"),
+                ]
+            if not inspection.get("positions"):
+                lines.append(("No positions returned for the configured paper account.", "muted"))
+        else:
+            for order in inspection.get("open_orders", []):
+                lines += [
+                    ("Order " + str(order["order_id"]) + " · " + order["status"], "accent"),
+                    (
+                        "Reference: " + str(order.get("order_ref") or "Not mapped to a Wayland intent"),
+                        "muted",
+                    ),
+                ]
+            if not inspection.get("open_orders"):
+                lines.append(("No open orders returned for the configured paper account.", "muted"))
+            lines.append(("Recent executions: " + str(inspection.get("execution_count", 0)), "base"))
+        return [row(part, tone, tone == "accent") for text, tone in lines for part in wrap(text, width)]
     if view == "files":
         lines = [
             ("POSITIONS · Broker snapshot", "accent"),
@@ -72,7 +109,7 @@ def trading_rows(data, view, width, wrap):
             )
         lines += [
             ("Setup: " + json.dumps(t.get("setup") or {}, ensure_ascii=False), "base"),
-            ("No continuous market/news feed is running in this release.", "warning"),
+            (observation.get("data_status", "No broker quote observer is connected."), "warning"),
             ("Stored data is not a fresh trading signal.", "muted"),
         ]
     return [row(part, tone, tone == "accent") for text, tone in lines for part in wrap(text, width)]

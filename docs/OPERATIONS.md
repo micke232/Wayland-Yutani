@@ -43,7 +43,7 @@ broker query. SIGINT/SIGTERM stops the loop, prevents new submissions and preser
 state. A crash before completion forces reconciliation on the next start.
 
 The event service is a Python integration interface. There is currently no
-production news ingestion, continuous IBKR quote pump, remote control endpoint or
+production news ingestion, execution-enabled IBKR feed, remote control endpoint or
 web dashboard. These are future integration work, not implicit background services.
 
 ## Target host (documentation only)
@@ -96,3 +96,22 @@ authentication renewal and scheduled maintenance handling remain operator setup.
 4. Resolve account/data/history coverage issues before allowing READY.
 5. Do not remove a process lock file to force another writer; stop the real owner.
 6. Report verified observations separately from simulated results.
+
+
+## Terminal broker connection
+
+F10 → Connect IBKR paper starts a read-only observer in Wayland's own service.
+Configure the paper account and allowlist under Setup first. The observer reconnects
+after connection failure and revalidates account settings. Disconnect stops polling;
+the saved preference survives service restarts. Settings changes re-establish the
+connection before using a changed account.
+
+The UI displays broker-returned positions/open orders separately from execution's
+verified portfolio. Successful account connection is not successful reconciliation:
+the operating state remains RECONCILING and execution_ready remains false.
+Missing/stale quotes do not hide positions and never become tradeable data.
+An observation older than 30 seconds is shown as stale/disconnected.
+
+Local verification found no configured account and no listeners on 4002/7497.
+Real account authentication, market permissions and paper data remain unverified.
+Gateway paper login must occur in IBKR's application, not inside chat.

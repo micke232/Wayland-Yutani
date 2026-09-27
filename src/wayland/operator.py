@@ -22,6 +22,9 @@ class OperatorRuntime:
         self.root = root
         self.lock = threading.RLock()
         self.active: dict[str, threading.Event] = {}
+        from .broker.observer import BrokerObserver
+
+        self.broker_observer = BrokerObserver(self)
         with self.store() as store:
             if store.get("ui:threads") is None:
                 threads = {}
@@ -103,6 +106,23 @@ class OperatorRuntime:
         if not fresh:
             trading["operating_state"] = "RECONCILING"
             trading["state_reasons"] = ["No fresh runtime heartbeat; stored state only"]
+        observation = store.get("broker:observation", {})
+        if observation:
+            observed_at = datetime.fromisoformat(observation["timestamp"])
+            current = 0 <= (utcnow() - observed_at).total_seconds() < 30
+            observation = dict(observation)
+            if not current:
+                observation["connected"] = False
+                observation["status"] = "Disconnected · stale broker observation"
+            trading["brokerObservation"] = observation
+            trading["broker_status"] = observation["status"]
+            if observation.get("connected"):
+                trading["operating_state"] = "RECONCILING"
+                trading["state_reasons"] = [
+                    "Paper account connected read-only; full execution reconciliation incomplete"
+                ]
+                trading["market"] = observation.get("market")
+        trading["broker_enabled"] = store.get("broker:enabled", False)
         info = store.get("ui:provider", {})
         provider_status = info.get("status") or (
             "Credentials present · not verified"
@@ -150,6 +170,16 @@ class OperatorRuntime:
                 if thread is None:
                     raise ValueError("Unknown Wayland role")
                 return thread
+            if action == "broker_connection":
+                enabled = params.get("enabled")
+                if type(enabled) is not bool:
+                    raise ValueError("Connection preference requires boolean")
+                if enabled:
+                    self.broker_observer.start()
+                else:
+                    self.broker_observer.shutdown()
+                store.set("broker:enabled", enabled)
+                return {"enabled": enabled}
             if action == "archives":
                 return {"archived": {k: v for k, v in threads.items() if v["bucket"] == "archived"}}
             if action == "create_agent":
@@ -381,6 +411,9 @@ def serve(root: Path):
 
     lease = ExecutionLease(root / "state/ui-service.sqlite")
     runtime = OperatorRuntime(root)
+    with runtime.store() as store:
+        if store.get("broker:enabled", False):
+            runtime.broker_observer.start()
     path = socket_path(root)
     path.unlink(missing_ok=True)
 
@@ -417,6 +450,7 @@ def serve(root: Path):
     try:
         server.serve_forever(poll_interval=0.2)
     finally:
+        runtime.broker_observer.shutdown()
         for cancel in list(runtime.active.values()):
             cancel.set()
         server.server_close()

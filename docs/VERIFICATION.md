@@ -75,3 +75,14 @@ Version 0.2.0 reuses Tyrell's interactive UI with a Wayland-only operator servic
 The default terminal command now opens the UI; JSON CLI subcommands remain for
 automation. The UI service supports separate stop/restart commands. Broker/feed
 integration limits documented above remain unchanged.
+
+
+## Read-only broker observer — 2026-09-27
+
+Version 0.2.1: 109 tests pass, plus lint, formatting and type checks. New fake-broker
+tests verify that missing configuration never contacts Gateway, stale quotes are
+not published as current, account mismatch disconnects, transient failure reconnects,
+stale UI observations show disconnected, positions remain visible during quote failure, and valid
+quotes never mark execution ready. The real local prerequisite probe found no
+Gateway/TWS paper listener on 4002/7497 and no configured paper account. No real
+broker connection or order is claimed.
