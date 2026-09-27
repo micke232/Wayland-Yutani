@@ -17,7 +17,7 @@ def connections_text(data, demo=False):
         "Codex uses your existing CLI login; Connect starts official login if needed.\n"
         "Open IBKR starts the official IB Gateway or TWS application.\n"
         "Chat is analytical only. It cannot submit orders.\n"
-        "Paper execution through IBKR remains disabled."
+        "Native paper long puts require enabled routing and verified state. Spreads remain blocked."
     )
 
 
@@ -64,7 +64,16 @@ class ConnectionsForm(SetupForm):
                 "    " + trading.get("broker_status", "Not connected"),
                 tone="success" if trading.get("brokerObservation", {}).get("connected") else "warning",
             ),
-            line("    Login does not unlock orders. Trading reconciliation remains required."),
+            line(
+                "    Paper orders: "
+                + (
+                    "enabled · LONG PUT only"
+                    if ui.data.get("tradingSettings", {}).get("ibkr_paper_orders")
+                    else "disabled · enable in IBKR settings"
+                )
+            ),
+            line("    " + trading.get("brokerObservation", {}).get("data_status", "Waiting for market data")),
+            line("    " + trading.get("brokerObservation", {}).get("inspection", {}).get("reason", "")),
             line(""),
             line("Codex CLI · Shared by all analytical roles", tone="base"),
             line("    [O] Connect Codex CLI", "login:codex"),

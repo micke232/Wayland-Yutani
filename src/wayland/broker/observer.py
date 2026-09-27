@@ -3,7 +3,7 @@
 import asyncio
 import threading
 
-from ..market import fresh
+from ..market import candidates, fresh
 from ..models import utcnow
 from .ibkr import IbkrBroker
 
@@ -41,7 +41,7 @@ class BrokerObserver:
             previous = store.get("broker:observation", {})
             store.set("broker:observation", observation)
             if previous.get("status") != status:
-                store.event("broker.connection", {"status": status, "read_only": True})
+                store.event("broker.connection", {"status": status, "read_only": observation["read_only"]})
 
     async def pause(self, seconds):
         deadline = asyncio.get_running_loop().time() + seconds
@@ -50,22 +50,45 @@ class BrokerObserver:
 
     async def sample(self, broker, config):
         inspection = await broker.inspect()
+        routing = getattr(config, "ibkr_paper_orders", False)
+        status = "Connected · paper routing configured" if routing else "Connected · paper read-only"
+        if self.autonomy is not None:
+            await self.autonomy.engine.reconcile()
+        if getattr(broker, "gateway_read_only", False):
+            inspection["reason"] = (
+                "Gateway blocks paper orders: Configure → Settings → API → Settings → disable Read-Only API"
+            )
+        elif self.autonomy is not None:
+            inspection["reason"] = (
+                ", ".join(self.autonomy.engine.store.get("state_reasons", [])) or "Broker state verified"
+            )
+        inspection["execution_ready"] = False
         self.publish(
-            "Connected · paper read-only",
+            status,
             connected=True,
+            read_only=not routing,
             inspection=inspection,
+            execution_ready=inspection.get("execution_ready", False),
             data_status="Fetching ORCL / USDSEK",
         )
         try:
-            market = await broker.market_data()
+            market = await asyncio.wait_for(broker.market_data(), 25)
             if not fresh(market.timestamp, utcnow(), config.max_market_data_age_seconds) or not fresh(
                 market.fx_timestamp, utcnow(), config.max_fx_age_seconds
             ):
                 raise ValueError("stale quotes")
+            inspection["execution_ready"] = bool(
+                routing
+                and self.autonomy is not None
+                and self.autonomy.engine.state == "READY"
+                and candidates(market, config, utcnow())
+            )
             self.publish(
-                "Connected · paper read-only",
+                status,
                 connected=True,
+                read_only=not routing,
                 inspection=inspection,
+                execution_ready=inspection.get("execution_ready", False),
                 market=market.model_dump(mode="json"),
                 data_status="Live quotes received",
             )
@@ -73,9 +96,11 @@ class BrokerObserver:
                 self.autonomy.offer(market)
         except Exception as error:  # noqa: BLE001 -- redact broker messages, preserve verified positions
             self.publish(
-                "Connected · paper read-only",
+                status,
                 connected=True,
+                read_only=not routing,
                 inspection=inspection,
+                execution_ready=inspection.get("execution_ready", False),
                 data_status="Quotes unavailable or stale ("
                 + type(error).__name__
                 + "). Check market hours and data permissions.",

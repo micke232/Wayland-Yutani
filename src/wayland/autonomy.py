@@ -14,6 +14,8 @@ class AutonomousSession:
         store = AuditStore(runtime.root / "state/wayland.sqlite")
         try:
             self.engine = ExecutionEngine(store, broker, settings)
+            if hasattr(broker, "bind_store"):
+                broker.bind_store(store)
         except BaseException:
             store.close()
             raise

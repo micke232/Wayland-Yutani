@@ -32,6 +32,7 @@ class Settings(Model):
     ibkr_port: int = Field(default=4002, ge=1, le=65535)
     ibkr_client_id: int = Field(default=37, gt=0)
     ibkr_account: str = ""
+    ibkr_paper_orders: bool = False
     openai_model: str = ""
     analysis_timeout_seconds: int = Field(default=120, gt=0, le=600)
     analysis_cooldown_seconds: int = Field(default=300, gt=0)

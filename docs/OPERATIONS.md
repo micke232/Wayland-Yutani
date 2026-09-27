@@ -115,3 +115,14 @@ An observation older than 30 seconds is shown as stale/disconnected.
 Local verification found no configured account and no listeners on 4002/7497.
 Real account authentication, market permissions and paper data remain unverified.
 Gateway paper login must occur in IBKR's application, not inside chat.
+
+
+### Native paper routing (0.6.0)
+
+Routing remains off by default. F10 → IBKR paper connection → Ibkr Paper Orders
+accepts true/false. Gateway must use Paper Trading and have Read-Only API disabled.
+Only long puts are routed. Combo orders are rejected.
+A Gateway permission failure leaves monitoring connected and reconciliation blocked.
+Unknown order outcomes require broker reconciliation; never clear the journal to retry.
+Missing broker PnL/FX, external positions/orders and incomplete historical evidence
+block readiness. Keep the local journal across restarts; do not copy another account's state.

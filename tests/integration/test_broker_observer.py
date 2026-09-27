@@ -123,3 +123,23 @@ def test_ui_marks_old_observation_disconnected(tmp_path):
     observation = runtime.dispatch("snapshot")["trading"]["brokerObservation"]
     assert not observation["connected"]
     assert "stale" in observation["status"]
+
+
+def test_native_verified_state_is_not_overwritten_by_readonly_ui_label(tmp_path):
+    runtime = OperatorRuntime(app_root(tmp_path))
+    with runtime.store() as store:
+        store.set("heartbeat", utcnow().isoformat())
+        store.set("operating_state", "READY")
+        store.set("state_reasons", [])
+        store.set(
+            "broker:observation",
+            {
+                "timestamp": utcnow().isoformat(),
+                "connected": True,
+                "read_only": False,
+                "status": "Connected · paper orders enabled",
+            },
+        )
+    trading = runtime.dispatch("snapshot")["trading"]
+    assert trading["operating_state"] == "READY"
+    assert trading["state_reasons"] == []

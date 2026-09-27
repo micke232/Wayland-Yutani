@@ -129,3 +129,20 @@ The installed `~/.local/bin/wayland` passed the PTY test. Its real analytical ro
 returned a Codex response and persisted the response audit. The installed package
 contains no `browser_setup` module. Official IB Gateway was opened through the
 connection action; broker login still requires the user's paper credentials.
+
+
+## Native paper adapter — 0.6.0
+
+Implemented opt-in long-put limit orders, durable pre-send markers, orderRef
+correlation, cancellation, bounded option sampling and broker-evidence reconciliation.
+Native spreads remain disabled. SDK-boundary tests cover fill/restart, partial fills,
+lost acknowledgements, missing history, duplicate orders, changed terms, external
+positions, disconnect and missing PnL. Original model output and refreshed execution
+proposal are logged separately; original cost/loss/quantity bounds are preserved.
+
+Read-only checks against the installed Gateway confirmed account/position/open-order
+access. Completed-order retrieval was rejected with error 321: Read-Only API enabled.
+No native paper order or real fill has been claimed verified. Live stays hard-locked.
+The historical read-only-only statements above describe prior versions.
+
+0.6.0 validation: 154 automated tests, Ruff, mypy and installed-terminal PTY checks passed.

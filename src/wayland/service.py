@@ -6,7 +6,7 @@ import uuid
 from .agents import REGISTRY
 from .execution import ExecutionEngine
 from .market import candidates
-from .models import Action, MarketSnapshot, OperatingState, utcnow
+from .models import Action, ExecutionResult, MarketSnapshot, OperatingState, utcnow
 from .positions import PositionManager
 from .providers.codex import CodexProvider
 from .strategy import SetupDetector
@@ -45,6 +45,10 @@ class WaylandService:
             ):
                 return None
             offered = candidates(snapshot, self.engine.settings, utcnow())
+            supported = getattr(
+                self.engine.broker, "supported_instruments", self.engine.settings.allowed_instruments
+            )
+            offered = tuple(c for c in offered if c.instrument in supported)
             if not offered:
                 self.engine.store.set(
                     "autonomy", {"status": "BLOCKED", "reason": "No qualified option candidates"}
@@ -71,7 +75,51 @@ class WaylandService:
                 self.engine.store.set("autonomy", {"status": "OBSERVING", "reason": "Model returned WAIT"})
                 return None
             candidate = next((c for c in offered if c.candidate_id == proposal.candidate_id), None)
-            # The engine rechecks freshness after reasoning. A slow model cannot trade on the old quote.
+            # Preserve model input/output; derive an explicitly audited execution proposal
+            # against new quotes, without increasing its quantity, cost or loss bounds.
+            if getattr(self.engine.broker, "refresh_before_execution", False):
+                refresh = getattr(self.engine.broker, "market_data", None)
+                if not callable(refresh):
+                    raise RuntimeError("Broker quote refresh unavailable")
+                refreshed = await asyncio.wait_for(refresh(snapshot.symbol), 25)
+                age = (utcnow() - snapshot.timestamp).total_seconds()
+                moved = abs(refreshed.price / snapshot.price - 1)
+                invalidated = (
+                    proposal.action == Action.ENTER
+                    and proposal.invalidation_price is not None
+                    and refreshed.price >= proposal.invalidation_price
+                )
+                if (
+                    age < 0
+                    or age > self.engine.settings.analysis_timeout_seconds
+                    or moved > self.engine.settings.reversal_fraction
+                    or invalidated
+                ):
+                    self.engine.store.event(
+                        "proposal.refresh_rejected",
+                        {"reason": "setup_changed_or_expired"},
+                        proposal.proposal_id,
+                    )
+                    self.engine.store.set(
+                        "autonomy", {"status": "OBSERVING", "reason": "Setup changed during analysis"}
+                    )
+                    return ExecutionResult(
+                        intent_id=None, state="REJECTED", reasons=("setup_changed_or_expired",)
+                    )
+                original = proposal
+                proposal = proposal.model_copy(
+                    update={"snapshot_id": refreshed.snapshot_id, "timestamp": utcnow()}
+                )
+                self.engine.store.event(
+                    "proposal.revalidated",
+                    {
+                        "original": original.model_dump(mode="json"),
+                        "execution_proposal": proposal.model_dump(mode="json"),
+                        "market": refreshed.model_dump(mode="json"),
+                    },
+                    proposal.proposal_id,
+                )
+                snapshot = refreshed
             result = await self.engine.execute(proposal, snapshot, candidate)
             self.engine.store.set(
                 "autonomy",

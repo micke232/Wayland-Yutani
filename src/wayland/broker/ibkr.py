@@ -1,14 +1,15 @@
-"""Read-only IB Gateway adapter. Real order routing remains gated pending paper verification."""
+"""Local paper Gateway adapter; live routing is hard-locked."""
 
 import asyncio
 import math
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
 from ..config import Settings
 from ..models import (
+    InstrumentType,
     MarketSnapshot,
     OptionContract,
     OptionQuote,
@@ -18,6 +19,7 @@ from ..models import (
     utcnow,
 )
 from .discovery import observation_account
+from .routing import PaperRouting
 
 
 def finite(value: Any) -> Decimal:
@@ -34,9 +36,20 @@ def midpoint(bid: Any, ask: Any) -> Decimal:
 
 
 class IbkrBroker:
+    refresh_before_execution = True
+    supported_instruments = (InstrumentType.LONG_PUT,)
+
     def __init__(self, settings: Settings, client: Any = None):
         self.settings, self.ib = settings, client
         self.verified = False
+        self.routing: PaperRouting | None = None
+        self.state_lock = asyncio.Lock()
+        self.pnl: Any = None
+        self.pnl_time: datetime | None = None
+        self.gateway_read_only = False
+        self.read_only_at: datetime | None = None
+        self.completed_future: Any = None
+        self.chains_cache: dict[str, tuple[datetime, list[dict]]] = {}
 
     async def connect(self) -> None:
         s = self.settings
@@ -53,12 +66,14 @@ class IbkrBroker:
             from ib_async import IB
 
             self.ib = IB()
+        if hasattr(self.ib, "errorEvent"):
+            self.ib.errorEvent += self.api_error
         await self.ib.connectAsync(
             s.ibkr_host,
             s.ibkr_port,
             clientId=s.ibkr_client_id,
             timeout=10,
-            readonly=True,
+            readonly=not s.ibkr_paper_orders,
             account=s.ibkr_account,
         )
         if s.ibkr_account not in self.ib.managedAccounts():
@@ -66,20 +81,90 @@ class IbkrBroker:
             raise ValueError("configured paper account was not reported by Gateway")
         self.verified = True
 
+    def api_error(self, request_id, code, message, *args):
+        if code == 321 and "read-only" in message.lower():
+            self.gateway_read_only = True
+            self.read_only_at = utcnow()
+            if self.completed_future is not None and not self.completed_future.done():
+                self.completed_future.set_exception(PermissionError("Gateway Read-Only API is enabled"))
+
+    def bind_store(self, store):
+        self.routing = PaperRouting(self, store)
+
+    async def read_state(self, completed=True):
+        if not self.verified or not self.ib.isConnected():
+            raise ConnectionError("Gateway disconnected")
+        async with self.state_lock:
+            if completed and self.read_only_at and (utcnow() - self.read_only_at).total_seconds() < 30:
+                raise PermissionError("Gateway Read-Only API is enabled")
+            if completed:
+                self.gateway_read_only = False
+            self.completed_future = (
+                asyncio.ensure_future(self.ib.reqCompletedOrdersAsync(False)) if completed else None
+            )
+            requests = [
+                asyncio.ensure_future(call)
+                for call in (
+                    self.ib.reqPositionsAsync(),
+                    self.ib.reqAllOpenOrdersAsync(),
+                    self.ib.reqExecutionsAsync(),
+                    self.completed_future if completed else asyncio.sleep(0, result=[]),
+                )
+            ]
+            try:
+                return await asyncio.wait_for(asyncio.gather(*requests), 12)
+            finally:
+                for request in requests:
+                    if not request.done():
+                        request.cancel()
+                await asyncio.gather(*requests, return_exceptions=True)
+
+    async def account_pnl(self):
+        from ib_async import Forex
+
+        if self.pnl is None:
+
+            def updated(value):
+                if value.account == self.settings.ibkr_account:
+                    self.pnl_time = utcnow()
+
+            self.ib.pnlEvent += updated
+            self.pnl = self.ib.reqPnL(self.settings.ibkr_account)
+        if self.pnl_time is None or (utcnow() - self.pnl_time).total_seconds() > 60:
+            raise ValueError("fresh broker PnL is unavailable")
+        currencies = {
+            v.value
+            for v in self.ib.accountValues(self.settings.ibkr_account)
+            if v.tag == "$LEDGER-RealCurrency" and v.currency == "BASE"
+        }
+        if len(currencies) != 1:
+            raise ValueError("account base currency is unverified")
+        currency = currencies.pop()
+        rate = Decimal(1)
+        if currency != "SEK":
+            if currency not in ("USD", "EUR", "GBP"):
+                raise ValueError("unsupported PnL conversion currency")
+            contracts = await asyncio.wait_for(self.ib.qualifyContractsAsync(Forex(currency + "SEK")), 5)
+            quotes = await asyncio.wait_for(self.ib.reqTickersAsync(*contracts), 5)
+            if (
+                len(quotes) != 1
+                or quotes[0].marketDataType != 1
+                or quotes[0].time is None
+                or not (0 <= (utcnow() - quotes[0].time).total_seconds() <= self.settings.max_fx_age_seconds)
+            ):
+                raise ValueError("account PnL FX quote unavailable")
+            rate = midpoint(quotes[0].bid, quotes[0].ask)
+        return finite(self.pnl.realizedPnL) * rate, finite(self.pnl.unrealizedPnL) * rate
+
     async def inspect(self) -> dict:
         if not self.verified or not self.ib.isConnected():
             raise ConnectionError("Gateway disconnected; reconnect and verify account")
         # Explicitly request all open orders; client-specific cache is not account authority.
-        positions, orders, executions = await asyncio.wait_for(
-            asyncio.gather(
-                self.ib.reqPositionsAsync(), self.ib.reqAllOpenOrdersAsync(), self.ib.reqExecutionsAsync()
-            ),
-            15,
-        )
+        positions, orders, executions, _ = await self.read_state(completed=False)
         account = self.settings.ibkr_account
         return {
             "paper_account_verified": True,
-            "read_only": True,
+            "read_only": not self.settings.ibkr_paper_orders,
             "positions": [
                 {
                     "con_id": p.contract.conId,
@@ -102,7 +187,7 @@ class IbkrBroker:
             ],
             "execution_count": sum(f.execution.acctNumber == account for f in executions),
             "execution_ready": False,
-            "reason": "IBKR fill-history completeness and combo lifecycle require real paper verification",
+            "reason": "Native long puts require verified orders, executions, positions and fresh account PnL; combos blocked",
         }
 
     async def market_data(self, symbol: str = "ORCL") -> MarketSnapshot:
@@ -119,6 +204,7 @@ class IbkrBroker:
         if len(tickers) != 2 or any(t.marketDataType != 1 or t.time is None for t in tickers):
             raise ValueError("live market data permission or timestamp missing")
         stock, fx = tickers
+        options = await self.selected_options(symbol, midpoint(stock.bid, stock.ask))
         return MarketSnapshot(
             snapshot_id=str(uuid.uuid4()),
             symbol=symbol,
@@ -126,7 +212,46 @@ class IbkrBroker:
             price=midpoint(stock.bid, stock.ask),
             usd_sek=midpoint(fx.bid, fx.ask),
             fx_timestamp=fx.time,
+            options=options,
         )
+
+    async def selected_options(self, symbol, price):
+        # Small, bounded chain selection. Always retain contracts of owned positions.
+        cached = self.chains_cache.get(symbol)
+        if cached and (utcnow() - cached[0]).total_seconds() < 900:
+            chains = cached[1]
+        else:
+            chains = await self.option_chains(symbol)
+            self.chains_cache[symbol] = (utcnow(), chains)
+        eligible = [c for c in chains if c["exchange"] == "SMART" and c["multiplier"] == "100"]
+        if not eligible:
+            return ()
+        chain = eligible[0]
+        expiries = [
+            date.fromisoformat(e)
+            for e in chain["expirations"]
+            if self.settings.min_dte
+            <= (date.fromisoformat(e) - utcnow().date()).days
+            <= self.settings.max_dte
+        ][:1]
+        strikes = sorted(chain["strikes"], key=lambda k: abs(Decimal(str(k)) - price))[:3]
+        selected = {(e, Decimal(str(k))) for e in expiries for k in strikes}
+        if self.routing is not None:
+            held = {
+                p["position_id"]
+                for p in self.routing.store.get("verified_portfolio", {}).get("positions", [])
+            }
+            for c in self.routing.commands().values():
+                for leg in c.contracts:
+                    if c.position_id in held and leg.symbol == symbol and leg.expiry >= utcnow().date():
+                        selected.add((leg.expiry, leg.strike))
+        if len(selected) > 16:
+            raise ValueError("option monitoring capacity exceeded")
+        results = await asyncio.gather(
+            *(self.option_quote(symbol, expiry, strike) for expiry, strike in sorted(selected)),
+            return_exceptions=True,
+        )
+        return tuple(q for q in results if isinstance(q, OptionQuote))
 
     async def option_chains(self, symbol: str = "ORCL") -> list[dict]:
         from ib_async import Stock
@@ -160,6 +285,15 @@ class IbkrBroker:
         if len(contracts) != 1 or contracts[0].conId <= 0:
             raise ValueError("option qualification failed")
         c = contracts[0]
+        if (
+            c.right != "P"
+            or c.currency != "USD"
+            or c.multiplier != "100"
+            or c.symbol != symbol
+            or Decimal(str(c.strike)) != strike
+            or date.fromisoformat(c.lastTradeDateOrContractMonth[:8]) != expiry
+        ):
+            raise ValueError("qualified option terms conflict")
         tickers = await asyncio.wait_for(self.ib.reqTickersAsync(c), 15)
         if len(tickers) != 1 or tickers[0].marketDataType != 1 or tickers[0].time is None:
             raise ValueError("live option data unavailable")
@@ -189,8 +323,9 @@ class IbkrBroker:
         )
 
     async def snapshot(self) -> PortfolioState:
+        if self.routing is not None:
+            return await self.routing.snapshot()
         await self.inspect()
-        # Do not convert an incomplete recent execution window into an empty/verified portfolio.
         return PortfolioState(
             account=self.settings.ibkr_account,
             mode=TradingMode.PAPER,
@@ -201,10 +336,14 @@ class IbkrBroker:
         )
 
     async def submit(self, command: OrderCommand):
-        raise RuntimeError("IBKR execution not enabled: paper lifecycle verification is outstanding")
+        if self.routing is None or not self.settings.ibkr_paper_orders:
+            raise RuntimeError("IBKR execution not enabled")
+        return await self.routing.submit(command)
 
     async def cancel(self, broker_id: str) -> None:
-        raise RuntimeError("IBKR execution not enabled: use Gateway to manage existing orders")
+        if self.routing is None or not self.settings.ibkr_paper_orders:
+            raise RuntimeError("IBKR execution not enabled")
+        await self.routing.cancel(broker_id)
 
     async def close(self) -> None:
         if self.ib is not None:

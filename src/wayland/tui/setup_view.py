@@ -8,6 +8,7 @@ CONNECTION_SECTIONS = {
         "ibkr_host",
         "ibkr_port",
         "ibkr_client_id",
+        "ibkr_paper_orders",
     ],
 }
 SECTIONS = {
@@ -25,6 +26,7 @@ SECTIONS = {
     "Strategy": ["allowed_symbols", "rebound_fraction", "reversal_fraction"],
 }
 HELP = {
+    "ibkr_paper_orders": "true enables native paper LONG PUT limit orders only, after reconciliation. Spreads remain blocked.",
     "openai_model": "Optional Codex model ID. Leave blank to use the CLI default.",
     "account_allowlist": "Comma-separated paper account IDs. Never add a live account.",
     "ibkr_account": "Paper account ID reported by your local Gateway.",

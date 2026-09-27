@@ -129,10 +129,9 @@ class OperatorRuntime:
             trading["brokerObservation"] = observation
             trading["broker_status"] = observation["status"]
             if observation.get("connected"):
-                trading["operating_state"] = "RECONCILING"
-                trading["state_reasons"] = [
-                    "Paper account connected read-only; full execution reconciliation incomplete"
-                ]
+                if observation.get("read_only", True):
+                    trading["operating_state"] = "RECONCILING"
+                    trading["state_reasons"] = ["Paper account connected read-only; native routing disabled"]
                 trading["market"] = observation.get("market")
         trading["broker_enabled"] = store.get("broker:enabled", False)
         provider = self.connections.snapshot()
@@ -274,6 +273,10 @@ class OperatorRuntime:
                 for key, value in patch.items():
                     if isinstance(raw[key], list):
                         raw[key] = [s.strip() for s in str(value).split(",") if s.strip()]
+                    elif isinstance(raw[key], bool):
+                        if str(value).lower() not in ("true", "false"):
+                            raise ValueError("Enter true or false")
+                        raw[key] = str(value).lower() == "true"
                     elif isinstance(raw[key], int):
                         raw[key] = int(value)
                     else:

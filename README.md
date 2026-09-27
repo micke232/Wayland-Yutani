@@ -12,9 +12,11 @@ Codex CLI owns authentication; Wayland creates fresh ephemeral analysis sessions
 
 - A persistent **simulator** exercises entry, rejection, partial fill, cancellation,
   exit, process death and recovery. It is not Interactive Brokers paper trading.
-- The **IBKR adapter is read-only**: paper account verification, positions/orders,
-  ORCL/USDSEK data, chain metadata and qualified option quotes. It rejects all
-  order and cancel submissions pending real paper lifecycle verification.
+- The **IBKR adapter defaults to read-only**. Opt-in native paper routing supports
+  long-put DAY limit orders and owned-order cancellation after reconciliation.
+  It samples ORCL/USDSEK and qualified options, journals broker evidence and blocks
+  on missing history, unknown positions or unavailable account PnL. Native spreads
+  remain disabled; real market-session paper soak is still outstanding.
 - An isolated Codex CLI provider returns validated proposals. It has no
   broker tools or credentials. A model error produces no new trade.
 - **LIVE is hard-locked**, regardless of configuration flags.
@@ -75,7 +77,7 @@ Connect from **F10**:
 - **S — Other settings:** appearance, risk/data limits and diagnostics.
 
 IBKR API access must be enabled in the official client. Wayland uses only local
-paper ports 4002/7497 and read-only requests; it rejects live accounts. Connected
+paper ports 4002/7497; routing is disabled by default and live accounts are rejected. Connected
 means the account can be observed, **not** that execution reconciliation is complete.
 Real IBKR order submission remains locked.
 
@@ -146,3 +148,18 @@ require account access, Gateway, an API key or paid model calls.
 
 [Architecture](docs/ARCHITECTURE.md) · [Risk controls](docs/RISK.md) ·
 [Operations](docs/OPERATIONS.md) · [Roadmap and verification](docs/ROADMAP.md)
+
+
+### Native paper orders
+
+F10 → IBKR paper connection → **Ibkr Paper Orders** accepts `true` or `false`.
+In the official Gateway's Configure → Settings → API → Settings, **Read-Only API**
+must be unchecked for native paper routing and completed-order reconciliation.
+Keep Gateway logged into **Paper Trading**. Never change to a live port/account.
+
+A connected account is not automatically READY. Wayland requires current broker
+positions/open orders/completed orders/executions and account-wide PnL converted
+to SEK, plus fresh underlying, FX and option quotes. Missing subscriptions,
+closed-market quotes or incomplete order history block new entries. F10 shows
+the connection and data blockers. The application never assumes a timed-out order
+failed, never automatically resends it, and does not route native spreads.

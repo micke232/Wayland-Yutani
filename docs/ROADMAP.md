@@ -76,3 +76,16 @@ The model has no tools. Simulator tests prove entry and protective exit with no
 userMessage or approval. Existing exposure monitoring stays active during reasoning.
 Real IBKR remains blocked at the earlier reconciliation gate. In particular, the
 observer's underlying/FX snapshots are not yet a complete options/news feed.
+
+
+## Native paper connection work (current)
+
+- [x] Stable account discovery and shared native login.
+- [x] Bounded live option-chain sampling, including owned position contracts.
+- [x] Durable intent/orderRef mapping and no resend after uncertain submission.
+- [x] Broker order/execution/position reconciliation with fail-closed gaps.
+- [x] Account-wide broker PnL and explicit base-currency/SEK conversion.
+- [x] Native LONG PUT DAY limit orders and owned-order cancellation.
+- [x] Adapter boundary tests for restart, lost acknowledgement and conflicting state.
+- [ ] Real paper market-session lifecycle/soak (requires usable market data).
+- [ ] Guaranteed combo execution, leg/correction/assignment verification. Native spreads remain disabled.
