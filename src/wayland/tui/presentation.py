@@ -24,6 +24,7 @@ PALETTE = {
     "selected": (117, 24, curses.COLOR_WHITE, curses.COLOR_BLUE),
     "user": (117, 235, curses.COLOR_CYAN, curses.COLOR_BLACK),
     "agent": (157, 235, curses.COLOR_GREEN, curses.COLOR_BLACK),
+    "coordinator": (183, 236, curses.COLOR_MAGENTA, curses.COLOR_BLACK),
     "strong": (157, 235, curses.COLOR_GREEN, curses.COLOR_BLACK),
     "inlinecode": (215, 235, curses.COLOR_YELLOW, curses.COLOR_BLACK),
     "tool": (183, 235, curses.COLOR_MAGENTA, curses.COLOR_BLACK),
@@ -204,6 +205,17 @@ def activity_indicator(label, now, thinking=False):
     return "[" + bar + "] " + ("Agent thinking" if thinking else "Agent working")
 
 
+def coordinator_title(item):
+    if item.get("type") != "agentMessage":
+        return None
+    if item.get("senderRole") == "coordinator" or item.get("text", "").startswith(
+        "**Coordinator assignment**\n\n"
+    ):
+        recipient = item.get("recipientName")
+        return "COORDINATOR → " + recipient if recipient else "COORDINATOR · Assignment"
+    return None
+
+
 def timeline(items, width, view, wrap, crop):
     """Rows carry their speaker title so a clipped message never loses attribution."""
     rows = []
@@ -238,6 +250,8 @@ def timeline(items, width, view, wrap, crop):
         )
         if kind == "appNotice":
             tone, title = "warning", "WAYLAND · Analysis update"
+        if coordinator_title(item):
+            tone, title = "coordinator", coordinator_title(item)
         inset = 3 if tone == "user" and width >= 40 else 0
 
         def row(text, header=False, syntax=False, copy_text=None, tone=tone, title=title, inset=inset):
@@ -256,6 +270,11 @@ def timeline(items, width, view, wrap, crop):
         body_width = max(8, width - inset - 4)
         if kind == "agentMessage":
             for part, spans, links in markdown_rows(text, body_width, wrap, crop, with_links=True):
+                if tone == "coordinator":
+                    spans = [
+                        (value, "coordinator" if style in ("agent", "strong") else style)
+                        for value, style in spans
+                    ]
                 rows.append(
                     {**row("│ " + part, copy_text=part), "spans": [("│ ", tone)] + spans, "links": links}
                 )
@@ -292,7 +311,13 @@ class TimelineCache:
         current, rows = {}, []
         for index, item in enumerate(items):
             key = item.get("id") or ("position", index)
-            signature = (item.get("type"), item.get("text"), item.get("delivery"))
+            signature = (
+                item.get("type"),
+                item.get("text"),
+                item.get("delivery"),
+                item.get("senderRole"),
+                item.get("recipientName"),
+            )
             cached = self.entries.get(key)
             if cached is None or cached[0] != signature:
                 cached = (signature, timeline([item], width, view, wrap, crop))

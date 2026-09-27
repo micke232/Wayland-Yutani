@@ -50,7 +50,14 @@ async def coordinate(runtime, text, context, config, cancel, synthesize=None):
             child["status"] = {"type": "active"}
             child["startedAt"] = time.time()
             child["plan"] = [{"step": "Report to Coordinator", "status": "inProgress"}]
-            child["items"].append(runtime.message("agentMessage", "**Coordinator assignment**\n\n" + text))
+            child["items"].append(
+                runtime.message(
+                    "agentMessage",
+                    text,
+                    senderRole="coordinator",
+                    recipientName=role.name,
+                )
+            )
             threads[COORDINATOR_ID]["plan"][index]["status"] = "inProgress"
             store.set("ui:threads", threads)
             store.event(

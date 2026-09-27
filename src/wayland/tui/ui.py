@@ -28,6 +28,7 @@ from .presentation import (
     PALETTE,
     TimelineCache,
     activity_indicator,
+    coordinator_title,
     markdown_rows,
     plan_rows,
     scrollbar_geometry,
@@ -668,9 +669,11 @@ class Dashboard:
             if not text.strip():
                 continue
             speaker = {"userMessage": "YOU", "agentMessage": "AGENT", "appNotice": "TYRELL"}[kind]
-            rows.append({"text": speaker, "tone": "accent"})
+            assignment = coordinator_title(item)
+            speaker = assignment or speaker
+            rows.append({"text": speaker, "tone": "coordinator" if assignment else "accent"})
             for part, _ in markdown_rows(text, max(8, w - 1), wrap, crop):
-                rows.append({"text": part.rstrip(), "tone": "base"})
+                rows.append({"text": part.rstrip(), "tone": "coordinator" if assignment else "base"})
             rows.append({"text": "", "tone": "base"})
         visible, self.scroll = viewport(rows, max(1, h - 1), self.scroll)
         self.history_bounds = None

@@ -22,6 +22,7 @@ FIELDS = {
     "selected": "Selected text",
     "user": "Your messages",
     "agent": "Agent replies",
+    "coordinator": "Coordinator assignments",
     "strong": "Emphasized reply text",
     "input": "Prompt",
     "inputmuted": "Prompt secondary text",
