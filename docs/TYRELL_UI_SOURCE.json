@@ -1,0 +1,17 @@
+{
+  "source_repository": "micke232/tyrell-agent-management",
+  "base_commit": "74005b8",
+  "source": "User-supplied working tree, including local changes; hashes identify the imported sources",
+  "files": {
+    "tyrell/ui.py": "db84bb39170d6c2783c4b3803abde78a008460fc0b77739b6587223b1f83e3b5",
+    "tyrell/appearance.py": "3601a5bdd2ba34bcd4cf01ec6cc9d8590a1c8293eaeb598fc9cbf1f403eee91d",
+    "tyrell/composer.py": "a259d52ee3eccf5b6daacf7100ade636c3f995fa168cb19e4335287c75fe2164",
+    "tyrell/clipboard.py": "1a8c77805c40694bc285d7f81e6177777b84338fae5d6289509af9cdfe6f1952",
+    "tyrell/presentation.py": "2cce6f8e8318a808d5115a14f58ceb7667f5abcd66476a38805136a544a9c266",
+    "tyrell/terminal_input.py": "f4e7dcc06b57bbfb594d0c67567066b588adab9c152dfcb50a6dff415be4837a",
+    "tyrell/links.py": "63a29acd74ad9187ab96fcceac01892913276e23b2463143ed0b10f2ce44b2a6",
+    "tyrell/progress.py": "886650fdb5a1e2569c025e4a09c15d00fad0adea078fe4999f7b950ef86fefcb",
+    "tyrell/commands.py": "d9cf9d43fe5a672b0badc6a19536fb556c649e0bc2fe71c6e2d13716131165a9",
+    "tyrell/startup.py": "f884b886e7783c187f4fc89bef21f4423d47f58dc09e39430e2075eeb32dcd34"
+  }
+}

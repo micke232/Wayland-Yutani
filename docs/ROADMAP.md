@@ -37,8 +37,12 @@ idempotency from application intent IDs.
 ## F: service/operator
 
 CLI status/audit/kill, monitor loop, heartbeat, signal handling, operating states
-and deployment documentation exist. A continuous quote/news event source and
-richer operator TUI are future work. No public endpoints or infrastructure deployment.
+and deployment documentation exist. The Tyrell-derived terminal UI provides the
+sidebar, role chat, plans, market/position/order/audit views, validated setup and
+appearance settings. Its isolated local operator service supports detach/reconnect
+and persisted conversations. Chat has no broker tools.
+A continuous quote/news event source remains future work. No public endpoints or
+infrastructure deployment.
 
 ## G: paper soak (not performed)
 

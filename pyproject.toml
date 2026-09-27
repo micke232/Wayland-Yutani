@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wayland-trading"
-version = "0.1.0"
+version = "0.2.0"
 description = "Auditable paper-first trading research with deterministic risk and recovery"
 requires-python = ">=3.12"
 dependencies = ["pydantic>=2.11,<3"]
@@ -33,3 +33,7 @@ python_version = "3.12"
 files = ["src/wayland"]
 check_untyped_defs = true
 ignore_missing_imports = true
+
+# Preserve Tyrell's presentation formatting while validating functional changes.
+[tool.ruff.lint.per-file-ignores]
+"src/wayland/tui/*.py" = ["UP031"]

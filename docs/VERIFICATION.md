@@ -49,3 +49,29 @@ Real history completeness, event persistence, broker ID correlation, combo lifec
 market entitlements and reconnect behavior must be verified before enabling paper
 execution. See ROADMAP.md. Only Python 3.14.7 was executed locally; other supported
 Python versions and deployment platforms remain unverified.
+
+## Terminal UI delivery — 2026-09-27
+
+Version 0.2.0 reuses Tyrell's interactive UI with a Wayland-only operator service.
+
+- Full suite: **102 passed**, including the original risk/recovery cases.
+- Ruff lint and format checks pass; mypy passes for 41 source files.
+- Real PTY integration exercises animated startup, the five-role sidebar, F10,
+  appearance, keyboard exit and service persistence after detaching.
+- Renderer tests cover all seven tabs at 70×18, 120×40 and 180×50.
+- Tests cover mouse role selection, draft preservation, slash completion,
+  role create/rename/archive/restore, validated settings, persistent entry kill,
+  queued prompts/plans, missing API configuration, and analytical API isolation.
+- Original Tyrell composer/clipboard regression tests were ported. Clipboard
+  subprocess behavior is mocked; no new claim of OS-wide Cmd+C verification.
+- Analytical API test uses a fake SDK response and confirms no tools/account data
+  are sent, and requested/reported models are audited. No paid API call was made.
+- Built a wheel and installed it in the user's independent Wayland client.
+  A second PTY run targets the actual ~/.local/bin/wayland launcher, without
+  PYTHONPATH or an activated development environment, and passes.
+- No Tyrell files or running Tyrell processes were modified.
+- No merge, live trade, real IBKR paper order or deployment.
+
+The default terminal command now opens the UI; JSON CLI subcommands remain for
+automation. The UI service supports separate stop/restart commands. Broker/feed
+integration limits documented above remain unchanged.

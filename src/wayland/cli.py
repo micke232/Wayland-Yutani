@@ -145,7 +145,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Wayland: paper-first research runtime; LIVE is hard-locked")
     parser.add_argument("--root", type=Path, help="Independent application data root (default ~/.wayland)")
     parser.add_argument("--config", type=Path, help="Validated JSON settings; no secrets")
-    commands = parser.add_subparsers(dest="command", required=True)
+    commands = parser.add_subparsers(dest="command")
+    commands.add_parser("dashboard", help="Open the interactive Wayland terminal")
+    commands.add_parser(
+        "ui-service", help="Run the internal operator service (normally started automatically)"
+    )
+    commands.add_parser("service-stop", help="Stop the independent operator service")
+    commands.add_parser("service-restart", help="Restart the operator service with the current environment")
     commands.add_parser("status", help="Stored operational state, orders, positions and recent audit (JSON)")
     commands.add_parser("demo", help="Run synthetic entry/risk/fill/exit flow in isolated demo databases")
     commands.add_parser("config-example", help="Print safe default settings")
@@ -166,8 +172,40 @@ def main() -> None:
         if args.command == "config-example":
             print(example_config())
             return
-        settings = load_settings(args.config)
         root = app_root(args.root)
+        config_path = args.config or root / "config/settings.json"
+        settings = load_settings(config_path) if config_path.exists() else load_settings(args.config)
+        if args.command in ("service-stop", "service-restart"):
+            import time
+
+            from .tui.client import ensure_service, request, socket_path
+
+            try:
+                request(root, "shutdown")
+            except (OSError, RuntimeError):
+                pass
+            deadline = time.monotonic() + 5
+            while socket_path(root).exists() and time.monotonic() < deadline:
+                time.sleep(0.05)
+            if socket_path(root).exists():
+                raise RuntimeError("Operator service did not stop")
+            if args.command == "service-restart":
+                ensure_service(root)
+            print(
+                "Wayland operator service "
+                + ("restarted" if args.command == "service-restart" else "stopped")
+            )
+            return
+        if args.command in (None, "dashboard"):
+            from .tui.app import run
+
+            run(root)
+            return
+        if args.command == "ui-service":
+            from .operator import serve
+
+            serve(root)
+            return
         if args.command == "status":
             print(encode(status(root)))
         elif args.command == "demo":

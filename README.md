@@ -20,6 +20,32 @@ It is independent of development assistants and their CLI sessions.
 - `monitor` refreshes broker state; it does not enable a live market/news feed or
   autonomous entries. `WaylandService.market_event` is the integration boundary.
 
+## Terminal application
+
+Run `wayland` to open the Tyrell-derived terminal interface. Its sidebar, focus
+navigation, mouse handling, prompt editor, history selection, manual clipboard,
+clickable links, slash completion and appearance editor are reused from Tyrell.
+Wayland owns its runtime and state; Tyrell is not installed or contacted.
+
+The sidebar contains independent analytical roles. Use F3 to create one, F5 to
+rename, and F4 to browse the archive. F2 / arrow keys navigate Chat, Plan, Market,
+Audit, Positions, Orders and Setup. F10 opens application settings and appearance.
+
+Chat uses the configured OpenAI API model for analysis only, without tools or
+order permissions. Additional prompts are queued visibly in the plan. Setup
+validates model, paper account, data quality and risk settings. Its changes apply
+to new analyses and the next monitor start, never to an active order.
+
+Market/position/order views show stored Wayland records and explicitly identify
+missing or stale state. They do not imply a connected live feed. The demo still
+uses its separate simulation database and does not populate the trading views.
+
+The UI starts an independent, local operator service. Ctrl+Q closes the view;
+analysis and conversations remain in that service. `wayland service-stop` stops
+it; `wayland service-restart` restarts it with your current shell environment.
+After exporting OPENAI_API_KEY, restart the service and choose the model in Setup.
+No API request is made merely by opening the interface.
+
 ## Install
 
 Python 3.12 or newer, on macOS or Linux:
@@ -27,6 +53,7 @@ Python 3.12 or newer, on macOS or Linux:
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -e '.[dev,openai,ibkr]'
+.venv/bin/wayland
 .venv/bin/wayland config-example
 .venv/bin/wayland status
 .venv/bin/wayland demo
