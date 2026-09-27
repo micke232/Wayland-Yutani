@@ -32,8 +32,9 @@ rename, and F4 to browse the archive. F2 / arrow keys navigate Chat, Plan, Marke
 Audit, Positions, Orders and Setup. F10 opens application settings and appearance.
 
 Chat uses the configured OpenAI API model for analysis only, without tools or
-order permissions. Additional prompts are queued visibly in the plan. Setup
-validates model, paper account, data quality and risk settings. Its changes apply
+order permissions. Additional prompts are queued visibly in the plan. F10 → Connections
+configures OpenAI and IBKR once for all roles. Setup holds global data quality
+and risk settings. Its changes apply
 to new analyses and the next monitor start, never to an active order.
 
 Market/position/order views show stored Wayland records and explicitly identify
@@ -43,7 +44,7 @@ uses its separate simulation database and does not populate the trading views.
 The UI starts an independent, local operator service. Ctrl+Q closes the view;
 analysis and conversations remain in that service. `wayland service-stop` stops
 it; `wayland service-restart` restarts it with your current shell environment.
-After exporting OPENAI_API_KEY, restart the service and choose the model in Setup.
+After exporting OPENAI_API_KEY, restart the service and choose the model in F10 → Connections.
 No API request is made merely by opening the interface.
 
 ## Install

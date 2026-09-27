@@ -100,8 +100,8 @@ authentication renewal and scheduled maintenance handling remain operator setup.
 
 ## Terminal broker connection
 
-F10 → Connect IBKR paper starts a read-only observer in Wayland's own service.
-Configure the paper account and allowlist under Setup first. The observer reconnects
+F10 → Connections → Connect IBKR paper starts a read-only observer in Wayland's own service.
+Configure the shared paper account and allowlist in that same Connections view. The observer reconnects
 after connection failure and revalidates account settings. Disconnect stops polling;
 the saved preference survives service restarts. Settings changes re-establish the
 connection before using a changed account.

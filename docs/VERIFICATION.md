@@ -86,3 +86,12 @@ stale UI observations show disconnected, positions remain visible during quote f
 quotes never mark execution ready. The real local prerequisite probe found no
 Gateway/TWS paper listener on 4002/7497 and no configured paper account. No real
 broker connection or order is claimed.
+
+
+## Global connections — 2026-09-27
+
+Version 0.2.2: 111 tests pass. OpenAI and IBKR connection settings and the broker
+connect/disconnect control are now in F10 → Connections, shared by all roles.
+Regression tests verify removal from Setup, global model application, navigation
+to the final connection field, and cancelling edits without losing a chat draft.
+No credential migration or account changes were needed.

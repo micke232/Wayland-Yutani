@@ -1,6 +1,6 @@
 """Trading form using Tyrell's focus, row, mouse and prompt-editing conventions."""
 
-SECTIONS = {
+CONNECTION_SECTIONS = {
     "OpenAI API": ["openai_model", "analysis_timeout_seconds", "analysis_cooldown_seconds"],
     "IBKR paper connection": [
         "ibkr_account",
@@ -9,6 +9,8 @@ SECTIONS = {
         "ibkr_port",
         "ibkr_client_id",
     ],
+}
+SECTIONS = {
     "Entry limits": ["max_position_sek", "max_daily_loss_sek", "max_trades_per_day", "max_open_positions"],
     "Data quality": [
         "max_market_data_age_seconds",
@@ -39,7 +41,8 @@ class SetupForm:
     def __init__(self):
         self.index = self.scroll = 0
         self.rows, self.hits = [], {}
-        self.expanded = {"OpenAI API", "IBKR paper connection"}
+        self.expanded = {"Entry limits"}
+        self.sections = SECTIONS
         self.pending = False
         self.folder = self.branch_picker = None
         self.scope = "defaults"
@@ -70,11 +73,11 @@ class SetupForm:
                 }
             )
 
-        add("PAPER ONLY · LIVE LOCKED", tone="warning")
+        add("GLOBAL TRADING SETTINGS · PAPER ONLY · LIVE LOCKED", tone="warning")
         add(
             "Applies to new analysis and the next monitor start; never changes an active order.", tone="muted"
         )
-        for title, keys in SECTIONS.items():
+        for title, keys in self.sections.items():
             add(("▾ " if title in self.expanded else "▸ ") + title, "section:" + title, "accent")
             if title in self.expanded:
                 for key in keys:

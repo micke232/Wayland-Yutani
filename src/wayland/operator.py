@@ -74,7 +74,7 @@ class OperatorRuntime:
                 self.message(
                     "agentMessage",
                     purpose
-                    + ".\n\nThis is Wayland's analytical workspace. Configure an OpenAI API model in Setup. Chat cannot place orders. Broker state is not verified until reconciliation succeeds.",
+                    + ".\n\nThis is Wayland's analytical workspace. Configure the shared OpenAI API model in F10 → Connections. Chat cannot place orders. Broker state is not verified until reconciliation succeeds.",
                 )
             ],
             "plan": [],
@@ -248,9 +248,9 @@ class OperatorRuntime:
                 return values
             elif action == "trading_settings":
                 patch = params.get("patch", {})
-                from .tui.setup_view import SECTIONS
+                from .tui.setup_view import CONNECTION_SECTIONS, SECTIONS
 
-                allowed = {key for keys in SECTIONS.values() for key in keys}
+                allowed = {key for keys in (SECTIONS | CONNECTION_SECTIONS).values() for key in keys}
                 if set(patch) - allowed:
                     raise ValueError("This setting cannot be changed from the terminal")
                 raw = self.settings().model_dump(mode="json")
@@ -292,7 +292,7 @@ class OperatorRuntime:
         reply, failed = "", False
         try:
             if not config.openai_model or not os.environ.get("OPENAI_API_KEY"):
-                reply = "Analysis is waiting for configuration. Set the OpenAI API model in Setup and provide OPENAI_API_KEY to the Wayland service. CLI login does not supply API access. No order was sent."
+                reply = "Analysis is waiting for configuration. Set the shared OpenAI API model in F10 → Connections and provide OPENAI_API_KEY to the Wayland service. CLI login does not supply API access. No order was sent."
                 failed = True
             else:
                 reply = asyncio.run(self.model_reply(tid, text, context, config, cancel))

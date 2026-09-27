@@ -263,3 +263,40 @@ def test_model_chat_has_no_tools_and_audits_model(runtime, monkeypatch):
         events = store.recent()
         assert any("reported-test-model" in e["payload"] for e in events)
         assert any("requested-test-model" in e["payload"] for e in events)
+
+
+def test_connections_are_global_and_removed_from_setup(ui, runtime):
+    ui.setup.visible(ui, 40)
+    assert not any(row["action"] in ("openai_model", "ibkr_account") for row in ui.setup.rows)
+    ui.key(curses.KEY_F10)
+    ui.hub_action("h")
+    render(ui)
+    assert ui.panel == "CONNECTIONS"
+    field = next(i for i, row in enumerate(ui.connections.rows) if row["action"] == "openai_model")
+    ui.connections.activate(ui, field)
+    assert ui.panel is None
+    assert ui.wizard["return_panel"] == "CONNECTIONS"
+    ui.buffer = "shared-model"
+    ui.entered()
+    ui.update()
+    assert ui.panel == "CONNECTIONS"
+    snapshot = runtime.dispatch("snapshot")
+    assert all(t["model"] == "shared-model" for t in snapshot["threads"].values())
+    ui.switch(ui.rows[-1][0])
+    render(ui)
+    assert any("shared-model" in row["text"] for row in ui.connections.rows)
+
+
+def test_connections_keyboard_reaches_last_field_and_cancel_preserves_draft(ui):
+    ui.buffer = "Keep my draft"
+    ui.hub_action("h")
+    render(ui)
+    for _ in range(40):
+        ui.key(curses.KEY_DOWN)
+        render(ui)
+    assert ui.connections.rows[ui.connections.index]["action"] == "ibkr_client_id"
+    ui.key("\r")
+    assert ui.wizard["field"] == "ibkr_client_id"
+    ui.key("\x1b")
+    assert ui.panel == "CONNECTIONS"
+    assert ui.buffer == "Keep my draft"

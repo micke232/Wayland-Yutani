@@ -19,7 +19,7 @@ from .client import request
 from .clipboard import copy_text, selection_text
 from .commands import choices as command_choices
 from .composer import DraftLayout
-from .connections import connection_badges, connections_text
+from .connections import ConnectionsForm, connection_badges, connections_text
 from .files_view import FilesView
 from .hub_settings import diagnostics_text, settings_text
 from .links import web_url
@@ -63,7 +63,8 @@ Plan tracks the selected role's current analysis.
 
 ## Settings
 F10 opens settings. Appearance includes preview, import and default colours.
-Setup edits validated paper connection, model, quality and risk settings.
+F10 → Connections edits the shared OpenAI and IBKR connection settings.
+Setup edits global quality and risk settings.
 Saved settings apply to new analyses and the next monitor start.
 Settings never unlock LIVE or approve a pending order.
 
@@ -238,6 +239,7 @@ class Dashboard:
         self.preferred_column = None
         self.draw_context = None
         self.setup = SetupForm()
+        self.connections = ConnectionsForm()
         self.files = FilesView()
         self.process_scroll = 0
 
@@ -987,7 +989,7 @@ class Dashboard:
             text = t.get("prompt") or (
                 "No tool output yet."
                 if self.view == "tools"
-                else "Write a message to the agent below.\n\nF3 creates an agent. Configure model and paper connection in Setup."
+                else "Write a message to the agent below.\n\nF3 creates an agent. Configure shared connections in F10."
             )
             if self.browse != "agents":
                 text = (
@@ -1151,6 +1153,8 @@ class Dashboard:
         )
         if self.panel == "APPEARANCE":
             self.appearance.render(self, screen)
+        elif self.panel == "CONNECTIONS":
+            self.connections.render(self, screen)
         elif self.panel:
             for y in range(2, h - 1):
                 self.band(screen, y, 1, w - 3, "", "surface")
@@ -1183,7 +1187,7 @@ class Dashboard:
             for y, line in enumerate(panel_lines[self.panel_scroll : self.panel_scroll + h - 7], 4):
                 if is_help:
                     if self.panel == "HUB SETTINGS":
-                        for action in ("1", "2", "3", "D", "H", "B", "M", "K", "G", "C"):
+                        for action in ("1", "2", "3", "D", "H", "M", "K", "G", "C"):
                             if line.lstrip().startswith("[" + action + "]"):
                                 self.hub_hits.append((6, w - 4, y, action.lower()))
                     offset_x = 4
@@ -1248,11 +1252,7 @@ class Dashboard:
         self.panel, self.panel_scroll = "HUB SETTINGS", 0
 
     def hub_action(self, action):
-        if action == "b":
-            self.submit(
-                "broker_connection", enabled=not self.data.get("trading", {}).get("broker_enabled", False)
-            )
-        elif action == "m":
+        if action == "m":
             self.submit("app_settings", patch={"mouseEnabled": not self.mouse_enabled})
         elif action == "c":
             self.panel = "APPEARANCE"
@@ -1349,9 +1349,12 @@ class Dashboard:
                 self.submit("create_agent", name=text)
             elif kind == "setup":
                 self.submit("trading_settings", patch={self.wizard["field"]: text})
+            return_panel = self.wizard.get("return_panel")
             self.wizard = None
             self.buffer = self.drafts.get(self.selected, "")
             self.cursor = len(self.buffer)
+            if return_panel:
+                self.panel = return_panel
             return
         if text.startswith("/"):
             self.buffer, self.cursor = "", 0
@@ -1595,6 +1598,9 @@ class Dashboard:
             self.pointer_shape = shape
 
     def mouse(self, button, x, y):
+        if self.panel == "CONNECTIONS":
+            self.connections.mouse(self, button, x, y)
+            return
         self.update_pointer(x, y)
         options = self.command_options()
         if options:
@@ -1750,6 +1756,8 @@ class Dashboard:
         elif self.panel:
             if self.panel == "APPEARANCE":
                 self.appearance.key(self, key)
+            elif self.panel == "CONNECTIONS":
+                self.connections.key(self, key)
             elif self.panel == "HUB SETTINGS" and key in (
                 curses.KEY_UP,
                 curses.KEY_DOWN,
@@ -1757,7 +1765,7 @@ class Dashboard:
                 "\r",
                 curses.KEY_ENTER,
             ):
-                actions = ["h", "b", "m", "k", "g", "c", "d"]
+                actions = ["h", "m", "k", "g", "c", "d"]
                 if key in ("\n", "\r", curses.KEY_ENTER):
                     self.hub_action(self.hub_selected)
                 else:
@@ -1789,8 +1797,6 @@ class Dashboard:
                 "D",
                 "h",
                 "H",
-                "b",
-                "B",
                 "m",
                 "M",
                 "k",
@@ -1826,6 +1832,12 @@ class Dashboard:
             if self.setup.folder is not None:
                 self.setup.close_folder()
                 self.focus = "history"
+                return
+            if self.wizard and self.wizard.get("return_panel"):
+                self.panel = self.wizard["return_panel"]
+                self.buffer = self.drafts.get(self.selected, "")
+                self.cursor = len(self.buffer)
+                self.wizard = None
                 return
             if self.wizard:
                 if self.wizard["kind"] == "rename":
