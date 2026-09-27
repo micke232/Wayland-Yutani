@@ -14,6 +14,7 @@ import webbrowser
 from functools import lru_cache
 from typing import Any
 
+from ..agents import ROLE_HELP
 from .appearance import Appearance
 from .client import request
 from .clipboard import copy_text, selection_text
@@ -73,6 +74,9 @@ Settings never unlock LIVE or approve a pending order.
 Reconciliation, freshness and deterministic risk checks still apply.
 IBKR order submission remains disabled pending paper verification.
 """
+
+
+HELP += ROLE_HELP
 
 
 def help_rows(width, content=HELP):

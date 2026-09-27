@@ -11,7 +11,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from .agents import REGISTRY
+from .agents import COORDINATOR_ID, REGISTRY
 from .audit import AuditStore, ExecutionLease
 from .config import Settings, load_settings
 from .models import utcnow
@@ -22,6 +22,8 @@ class OperatorRuntime:
         self.root = root
         self.lock = threading.RLock()
         self.active: dict[str, threading.Event] = {}
+        self.delegated: dict[str, threading.Event] = {}
+        self.autonomous_roles: set[str] = set()
         from .broker.observer import BrokerObserver
 
         self.broker_observer = BrokerObserver(self)
@@ -29,11 +31,14 @@ class OperatorRuntime:
             if store.get("ui:threads") is None:
                 threads = {}
                 for role in REGISTRY:
-                    threads[role.agent_id] = self.new_thread(
-                        role.agent_id, role.agent_id.split(":")[1].replace("-", " ").title(), role.purpose
-                    )
+                    threads[role.agent_id] = self.new_thread(role.agent_id, role.name, role.purpose)
                 store.set("ui:threads", threads)
             threads = store.get("ui:threads", {})
+            for role in REGISTRY:
+                if role.agent_id in threads:
+                    threads[role.agent_id]["purpose"] = role.purpose
+                    if role.agent_id == COORDINATOR_ID and threads[role.agent_id]["name"] == "Strategist":
+                        threads[role.agent_id]["name"] = role.name
             for thread in threads.values():
                 if thread.get("status", {}).get("type") == "active":
                     thread["status"] = {"type": "waiting"}
@@ -94,6 +99,9 @@ class OperatorRuntime:
             state_reasons=store.get("state_reasons", ["No broker reconciliation has run"]),
             setup=store.get("setup:ORCL"),
             order_intents=store.intents(),
+            autonomy=store.get(
+                "autonomy", {"status": "OFFLINE", "reason": "Waiting for broker observations"}
+            ),
         )
         p = trading.get("portfolio") or {}
         heartbeat = trading.get("heartbeat")
@@ -206,6 +214,10 @@ class OperatorRuntime:
                     }[action]
                 result = {"threadId": tid, "name": thread["name"]}
             elif action == "send":
+                if tid in self.delegated:
+                    raise ValueError(
+                        "This specialist is reporting to Coordinator. Send additional context to Coordinator."
+                    )
                 if not thread:
                     raise ValueError("Unknown Wayland role")
                 text = str(params.get("text", "")).strip()
@@ -233,6 +245,8 @@ class OperatorRuntime:
                 worker.start()
                 return {"accepted": True}
             elif action == "interrupt":
+                if tid in self.delegated:
+                    self.delegated[tid].set()
                 if tid in self.active:
                     self.active[tid].set()
                     thread["queued"] = []
@@ -295,7 +309,12 @@ class OperatorRuntime:
                 reply = "Analysis is waiting for configuration. Set the shared OpenAI API model in F10 → Connections and provide OPENAI_API_KEY to the Wayland service. CLI login does not supply API access. No order was sent."
                 failed = True
             else:
-                reply = asyncio.run(self.model_reply(tid, text, context, config, cancel))
+                if tid == COORDINATOR_ID:
+                    from .coordination import coordinate
+
+                    reply = asyncio.run(coordinate(self, text, context, config, cancel))
+                else:
+                    reply = asyncio.run(self.model_reply(tid, text, context, config, cancel))
         except Exception as error:  # noqa: BLE001 -- SDK payloads may contain credentials
             reply = "Analysis unavailable (" + type(error).__name__ + "). No order was sent. Check Settings."
             failed = True
@@ -341,6 +360,8 @@ class OperatorRuntime:
 
         # Account IDs, broker IDs and private config are not analytical context.
         supplied = {k: context.get(k) for k in ("market", "setup", "operating_state", "state_reasons")}
+        if tid == COORDINATOR_ID and "analyst_reports" in context:
+            supplied["analyst_reports"] = context["analyst_reports"]
         with self.store() as store:
             thread = store.get("ui:threads")[tid]
             from openai.types.responses import ResponseInputParam
@@ -350,6 +371,9 @@ class OperatorRuntime:
                 for i in thread["items"][-20:]
                 if i["type"] in ("userMessage", "agentMessage")
             ]
+            if context.get("specialist_task"):
+                # A delegated report sees only its assignment and shared observations, never peer chats.
+                history = [{"role": "user", "content": text}]
             instructions = (
                 "You are a Wayland analytical assistant. Role: "
                 + thread["purpose"]
@@ -365,6 +389,7 @@ class OperatorRuntime:
                     "instructions": instructions,
                     "history": history,
                     "schema": AnalyticalReply.model_json_schema(),
+                    "coordination_id": context.get("coordination_id"),
                     "prompt_version": "operator-chat-v1",
                 },
                 correlation,

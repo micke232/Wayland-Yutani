@@ -95,3 +95,17 @@ connect/disconnect control are now in F10 → Connections, shared by all roles.
 Regression tests verify removal from Setup, global model application, navigation
 to the final connection field, and cancelling edits without losing a chat draft.
 No credential migration or account changes were needed.
+
+
+## Coordinator and autonomy — 2026-09-27
+
+Version 0.3.0: **118 tests pass**, Ruff passes and mypy passes for 45 source files.
+Tests prove independent specialist envelopes, bounded four-plus-one routing,
+explicit missing/failed roles, interruption, and preservation of user-renamed roles.
+
+A complete autonomous simulation drives price events into the strategy detector,
+specialist reports, typed proposal, deterministic risk, entry, fill and protective
+exit with no user prompt. Model responses and fills are controlled test fixtures.
+A separate test rejects all analysis/orders for incomplete broker state, and another
+verifies position monitoring continues while reasoning is pending. This is not
+real IBKR paper or real OpenAI verification.

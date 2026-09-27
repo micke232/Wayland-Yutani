@@ -27,12 +27,28 @@ navigation, mouse handling, prompt editor, history selection, manual clipboard,
 clickable links, slash completion and appearance editor are reused from Tyrell.
 Wayland owns its runtime and state; Tyrell is not installed or contacted.
 
-The sidebar contains independent analytical roles. Use F3 to create one, F5 to
+Coordinator (Strategist) is selected on startup and is the main operator contact.
+F1 explains every default role and its responsibilities. The sidebar also lets
+you talk directly to individual specialists. Use F3 to create one, F5 to
 rename, and F4 to browse the archive. F2 / arrow keys navigate Chat, Plan, Market,
 Audit, Positions, Orders and Setup. F10 opens application settings and appearance.
 
-Chat uses the configured OpenAI API model for analysis only, without tools or
-order permissions. Additional prompts are queued visibly in the plan. F10 → Connections
+Coordinator collects independent Market, Technical, News and Options reports and
+synthesizes them. Specialists do not receive peer conversations or reports.
+Ordinary chat uses the configured OpenAI API model without order permissions.
+
+Broker observations also drive the autonomous event loop: a qualifying setup,
+verified broker state and qualified option candidates trigger specialist review,
+a strict TradeProposal and deterministic risk/execution checks without a user
+prompt or per-order approval. Normal quotes do not invoke models. Each review
+uses at most four specialist calls and one synthesis; missing/busy roles are
+explicitly unavailable. Position monitoring continues during reasoning.
+
+This automatic chain is verified with the persistent simulator and mocked models.
+The real IBKR adapter still reports incomplete execution reconciliation and blocks
+orders. Real broker history, continuous option qualification, live model timing,
+news ingestion and paper soak remain outstanding. Connecting Gateway alone does
+not make the system ready for autonomous IBKR paper trading. Additional prompts are queued visibly in the plan. F10 → Connections
 configures OpenAI and IBKR once for all roles. Setup holds global data quality
 and risk settings. Its changes apply
 to new analyses and the next monitor start, never to an active order.

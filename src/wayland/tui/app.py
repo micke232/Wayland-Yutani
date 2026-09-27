@@ -19,6 +19,11 @@ def run(root):
     startup.finish()
     dashboard = Dashboard(str(root))
     dashboard.data = snapshot
+    from ..agents import COORDINATOR_ID
+
+    if COORDINATOR_ID in snapshot.get("threads", {}):
+        dashboard.selected = "thread:" + COORDINATOR_ID
+        dashboard.focus = "chat"
     try:
         curses.wrapper(dashboard.run)
     except KeyboardInterrupt:

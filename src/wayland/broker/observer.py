@@ -13,6 +13,7 @@ class BrokerObserver:
         self.runtime, self.factory = runtime, factory
         self.stop = threading.Event()
         self.thread = None
+        self.autonomy = None
 
     def start(self):
         if self.thread and self.thread.is_alive():
@@ -67,6 +68,8 @@ class BrokerObserver:
                 market=market.model_dump(mode="json"),
                 data_status="Live quotes received",
             )
+            if self.autonomy is not None:
+                self.autonomy.offer(market)
         except Exception as error:  # noqa: BLE001 -- redact broker messages, preserve verified positions
             self.publish(
                 "Connected · paper read-only",
@@ -90,6 +93,16 @@ class BrokerObserver:
                 broker = self.factory(config)
                 try:
                     await broker.connect()
+                    from ..autonomy import AutonomousSession
+
+                    try:
+                        self.autonomy = AutonomousSession(self.runtime, broker, config)
+                    except RuntimeError:
+                        with self.runtime.store() as store:
+                            store.set(
+                                "autonomy",
+                                {"status": "BLOCKED", "reason": "Another execution owner is active"},
+                            )
                     while not self.stop.is_set() and self.runtime.settings() == config:
                         await self.sample(broker, config)
                         await self.pause(2)
@@ -100,6 +113,9 @@ class BrokerObserver:
                         + " · check Gateway login, paper port and account"
                     )
                 finally:
+                    if self.autonomy is not None:
+                        await self.autonomy.close()
+                        self.autonomy = None
                     await broker.close()
                     broker = None
                 await self.pause(3)
@@ -107,3 +123,5 @@ class BrokerObserver:
             if broker is not None:
                 await broker.close()
             self.publish("Disconnected · monitoring stopped")
+            with self.runtime.store() as store:
+                store.set("autonomy", {"status": "OFFLINE", "reason": "Broker observer stopped"})

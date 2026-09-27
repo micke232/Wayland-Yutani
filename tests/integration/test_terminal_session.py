@@ -65,7 +65,7 @@ def test_real_terminal_start_settings_navigation_and_detach():
             wait_text("Press any key to continue")
             os.write(master, b" ")
             wait_text("Market Analyst")
-            wait_text("Strategist")
+            wait_text("Coordinator")
             os.write(master, b"\x1b[21~")  # F10
             wait_text("Mouse navigation")
             os.write(master, b"c")

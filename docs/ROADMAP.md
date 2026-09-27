@@ -41,7 +41,8 @@ and deployment documentation exist. The Tyrell-derived terminal UI provides the
 sidebar, role chat, plans, market/position/order/audit views, validated setup and
 appearance settings. Its isolated local operator service supports detach/reconnect
 and persisted conversations. Chat has no broker tools.
-A continuous quote/news event source remains future work. No public endpoints or
+The paper observer now feeds the autonomous event pipeline. A complete option/news
+feed and broker execution reconciliation remain outstanding. No public endpoints or
 infrastructure deployment.
 
 ## G: paper soak (not performed)
@@ -60,3 +61,18 @@ account allowlist, tested bounded-loss/fees/FX/assignment behavior, risk limits,
 kill/operational modes, complete reconciliation, broker/order idempotency evidence,
 monitoring, operator recovery and deployment security. Completing earlier phases
 never removes the lock automatically.
+
+
+## Coordinator and autonomous event delivery
+
+Coordinator is the main operator contact and the default selected role. F1 documents
+all responsibilities. Its specialists only report to Coordinator; their individual
+chat histories are not copied into delegated reports. Archived/busy roles are
+reported missing instead of impersonated.
+
+The automatic event path runs the same bounded specialist collection, followed by
+a strict typed proposal through OpenAIProvider, RiskEngine and ExecutionEngine.
+The model has no tools. Simulator tests prove entry and protective exit with no
+userMessage or approval. Existing exposure monitoring stays active during reasoning.
+Real IBKR remains blocked at the earlier reconciliation gate. In particular, the
+observer's underlying/FX snapshots are not yet a complete options/news feed.

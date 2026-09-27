@@ -100,6 +100,13 @@ def trading_rows(data, view, width, wrap):
             ("MARKET · Supplied observations", "accent"),
             ("Broker: " + t.get("broker_status", "Not verified"), "warning"),
             ("State: " + t.get("operating_state", "RECONCILING"), "base"),
+            (
+                "Autonomy: "
+                + str(t.get("autonomy", {}).get("status", "OFFLINE"))
+                + " · "
+                + str(t.get("autonomy", {}).get("reason", "")),
+                "accent",
+            ),
             ("Reason: " + ", ".join(t.get("state_reasons", [])), "muted"),
         ]
         market = t.get("market") or {}
