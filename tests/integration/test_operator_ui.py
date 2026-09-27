@@ -148,6 +148,8 @@ def test_kill_persists_in_execution_store(runtime):
 
 def test_f10_navigation_and_appearance(ui):
     ui.key(curses.KEY_F10)
+    assert ui.panel == "CONNECTIONS"
+    ui.key("s")
     for _ in range(12):
         ui.key(curses.KEY_DOWN)
         render(ui)
@@ -270,6 +272,7 @@ def test_connections_are_global_and_removed_from_setup(ui, runtime):
     assert not any(row["action"] in ("openai_model", "ibkr_account") for row in ui.setup.rows)
     ui.key(curses.KEY_F10)
     ui.hub_action("h")
+    ui.connections.expanded.add("OpenAI API")
     render(ui)
     assert ui.panel == "CONNECTIONS"
     field = next(i for i, row in enumerate(ui.connections.rows) if row["action"] == "openai_model")
@@ -290,8 +293,11 @@ def test_connections_are_global_and_removed_from_setup(ui, runtime):
 def test_connections_keyboard_reaches_last_field_and_cancel_preserves_draft(ui):
     ui.buffer = "Keep my draft"
     ui.hub_action("h")
+    ui.connections.expanded.add("IBKR paper connection")
     render(ui)
     for _ in range(40):
+        if ui.connections.rows[ui.connections.index]["action"] == "ibkr_client_id":
+            break
         ui.key(curses.KEY_DOWN)
         render(ui)
     assert ui.connections.rows[ui.connections.index]["action"] == "ibkr_client_id"
@@ -300,3 +306,24 @@ def test_connections_keyboard_reaches_last_field_and_cancel_preserves_draft(ui):
     ui.key("\x1b")
     assert ui.panel == "CONNECTIONS"
     assert ui.buffer == "Keep my draft"
+
+
+@pytest.mark.parametrize("size", [(70, 18), (120, 40)])
+def test_connection_buttons_open_browser_and_preserve_prompt(ui, runtime, size):
+    ui.buffer = "An unfinished trading question"
+    with (
+        patch.object(
+            runtime.browser_setup, "start", return_value={"url": "http://127.0.0.1:42100/test/openai"}
+        ) as start,
+        patch("wayland.tui.ui.webbrowser.open", return_value=True) as browser,
+    ):
+        ui.key(curses.KEY_F10)
+        render(ui, *size)
+        assert ui.panel == "CONNECTIONS"
+        assert ui.connections.rows[ui.connections.index]["action"] == "login:ibkr"
+        ui.key("o")
+        ui.update()
+        start.assert_called_once_with("openai")
+        browser.assert_called_once()
+        assert ui.buffer == "An unfinished trading question"
+        assert ui.wizard is None

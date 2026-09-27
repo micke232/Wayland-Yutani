@@ -31,7 +31,7 @@ Coordinator (Strategist) is selected on startup and is the main operator contact
 F1 explains every default role and its responsibilities. The sidebar also lets
 you talk directly to individual specialists. Use F3 to create one, F5 to
 rename, and F4 to browse the archive. F2 / arrow keys navigate Chat, Plan, Market,
-Audit, Positions, Orders and Setup. F10 opens application settings and appearance.
+Audit, Positions, Orders and Setup. F10 opens Connections directly; press S there for other settings and appearance.
 
 Coordinator collects independent Market, Technical, News and Options reports and
 synthesizes them. Specialists do not receive peer conversations or reports.
@@ -60,8 +60,34 @@ uses its separate simulation database and does not populate the trading views.
 The UI starts an independent, local operator service. Ctrl+Q closes the view;
 analysis and conversations remain in that service. `wayland service-stop` stops
 it; `wayland service-restart` restarts it with your current shell environment.
-After exporting OPENAI_API_KEY, restart the service and choose the model in F10 → Connections.
-No API request is made merely by opening the interface.
+Connect from **F10**:
+
+- **I — Sign in to IBKR** opens the browser. Wayland prepares the official Client
+  Portal Gateway and, if needed, Java through an existing Homebrew installation.
+  Log in with **paper** credentials; account detection and status checks are automatic.
+  The local gateway uses its own certificate, so the browser may require accepting
+  the localhost certificate. Wayland's API client verifies that specific certificate.
+- **O — Connect OpenAI** opens a browser form with a link to OpenAI's API-key page.
+  Paste the key and choose your API model there. Wayland verifies model access and
+  applies the connection to all roles without environment variables or a restart.
+  Keys are stored in `~/.wayland/secrets` with owner-only permissions, outside chat,
+  settings and audit records. This is API-key setup, not ChatGPT subscription OAuth.
+- **S — Other settings** opens appearance, risk/data limits and diagnostics.
+  Optional TWS socket settings remain under the collapsed advanced sections.
+
+IBKR browser authentication is currently separate from the TWS market-data adapter:
+**authenticated does not mean a trading feed or execution is ready**. The browser
+connection verifies the paper account but does not yet supply market data or orders.
+Wayland stays RECONCILING and execution stays locked. Gateway is supervised so its
+process stops even if the owning Wayland service crashes. Login may need repeating
+when IBKR expires the session. The gateway accepts only loopback client addresses.
+
+OpenAI API billing is separate from CLI/ChatGPT subscriptions. Opening the terminal
+alone does not send an OpenAI request. An explicit Connect verifies the key/model;
+compatibility with structured Responses is verified by subsequent analysis.
+
+Authentication references: [IBKR browser gateway](https://www.interactivebrokers.com/campus/trading-lessons/launching-and-authenticating-the-gateway/)
+and [OpenAI API authentication](https://developers.openai.com/api/reference/overview).
 
 ## Install
 

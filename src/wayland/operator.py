@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-import os
 import signal
 import socketserver
 import threading
@@ -14,6 +13,7 @@ from typing import Any
 from .agents import COORDINATOR_ID, REGISTRY
 from .audit import AuditStore, ExecutionLease
 from .config import Settings, load_settings
+from .credentials import api_key
 from .models import utcnow
 
 
@@ -27,6 +27,9 @@ class OperatorRuntime:
         from .broker.observer import BrokerObserver
 
         self.broker_observer = BrokerObserver(self)
+        from .browser_setup import BrowserSetup
+
+        self.browser_setup = BrowserSetup(self)
         with self.store() as store:
             if store.get("ui:threads") is None:
                 threads = {}
@@ -131,11 +134,14 @@ class OperatorRuntime:
                 ]
                 trading["market"] = observation.get("market")
         trading["broker_enabled"] = store.get("broker:enabled", False)
-        info = store.get("ui:provider", {})
+        portal = self.browser_setup.portal.snapshot()
+        if portal.get("connected"):
+            trading["broker_status"] = "Browser authenticated · trading feed not connected"
+        info = store.get("ui:provider", {}) if api_key(self.root) else {}
         provider_status = info.get("status") or (
             "Credentials present · not verified"
-            if os.environ.get("OPENAI_API_KEY")
-            else "OPENAI_API_KEY missing"
+            if api_key(self.root)
+            else "Not connected · Sign in from Connections"
         )
         result = {
             "connected": True,
@@ -145,7 +151,10 @@ class OperatorRuntime:
             "trading": trading,
             "settings": store.get("ui:settings", {"mouseEnabled": True}),
             "tradingSettings": config.model_dump(mode="json"),
-            "providers": {"openai": {"status": provider_status, "model": config.openai_model}},
+            "providers": {
+                "openai": {"status": provider_status, "model": config.openai_model},
+                "ibkr": self.browser_setup.portal.snapshot(),
+            },
             "setupRevision": store.get("ui:revision", 0),
         }
         events = store.recent(100)
@@ -169,6 +178,13 @@ class OperatorRuntime:
 
     def dispatch(self, action, **params):
         with self.lock, self.store() as store:
+            if action == "browser_login":
+                provider = params.get("provider")
+                if provider == "ibkr":
+                    self.broker_observer.shutdown()
+                    store.set("broker:enabled", False)
+                    store.set("browser:ibkr_enabled", True)
+                return self.browser_setup.start(provider)
             if action in ("snapshot", "diagnostics"):
                 return self.snapshot(store)
             threads = store.get("ui:threads", {})
@@ -305,8 +321,8 @@ class OperatorRuntime:
         config = self.settings()
         reply, failed = "", False
         try:
-            if not config.openai_model or not os.environ.get("OPENAI_API_KEY"):
-                reply = "Analysis is waiting for configuration. Set the shared OpenAI API model in F10 → Connections and provide OPENAI_API_KEY to the Wayland service. CLI login does not supply API access. No order was sent."
+            if not config.openai_model or not api_key(self.root):
+                reply = "Analysis is waiting for configuration. Set the shared OpenAI API model in F10 → Connections and choose Connect OpenAI to finish setup in your browser. CLI login does not supply API access. No order was sent."
                 failed = True
             else:
                 if tid == COORDINATOR_ID:
@@ -394,7 +410,9 @@ class OperatorRuntime:
                 },
                 correlation,
             )
-        async with AsyncOpenAI(timeout=config.analysis_timeout_seconds, max_retries=0) as client:
+        async with AsyncOpenAI(
+            api_key=api_key(self.root), timeout=config.analysis_timeout_seconds, max_retries=0
+        ) as client:
             task = asyncio.create_task(
                 client.responses.parse(
                     model=config.openai_model,
@@ -437,7 +455,9 @@ def serve(root: Path):
     lease = ExecutionLease(root / "state/ui-service.sqlite")
     runtime = OperatorRuntime(root)
     with runtime.store() as store:
-        if store.get("broker:enabled", False):
+        if store.get("browser:ibkr_enabled", False):
+            runtime.browser_setup.portal.start()
+        elif store.get("broker:enabled", False):
             runtime.broker_observer.start()
     path = socket_path(root)
     path.unlink(missing_ok=True)
@@ -476,6 +496,7 @@ def serve(root: Path):
         server.serve_forever(poll_interval=0.2)
     finally:
         runtime.broker_observer.shutdown()
+        runtime.browser_setup.close()
         for cancel in list(runtime.active.values()):
             cancel.set()
         server.server_close()

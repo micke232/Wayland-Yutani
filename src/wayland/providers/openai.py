@@ -6,6 +6,7 @@ from typing import Any
 
 from ..audit import AuditStore
 from ..config import Settings
+from ..credentials import api_key
 from ..models import TradeProposal
 
 PROMPT_VERSION = "wayland-strategist-v1"
@@ -47,7 +48,11 @@ class OpenAIProvider:
             if self.client is None:
                 from openai import AsyncOpenAI
 
-                self.client = AsyncOpenAI(timeout=self.settings.analysis_timeout_seconds, max_retries=0)
+                self.client = AsyncOpenAI(
+                    api_key=api_key(self.store.path.parent.parent),
+                    timeout=self.settings.analysis_timeout_seconds,
+                    max_retries=0,
+                )
             response = await asyncio.wait_for(
                 self.client.responses.parse(
                     model=self.settings.openai_model,

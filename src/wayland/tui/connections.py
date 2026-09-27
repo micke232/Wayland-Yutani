@@ -14,8 +14,8 @@ def connections_text(data, demo=False):
         + "\nIBKR: "
         + t.get("broker_status", "not verified")
         + "\n\nConfigure the model and paper Gateway in F10 → Connections.\n"
-        "API credentials come from OPENAI_API_KEY, not a CLI subscription.\n"
-        "After changing the environment, run wayland service-restart in your shell.\n"
+        "Connect OpenAI opens browser setup; no shell configuration needed.\n"
+        "Sign in to IBKR opens its local Client Portal Gateway.\n"
         "Chat is analytical only. It cannot submit orders.\n"
         "Paper execution through IBKR remains disabled."
     )
@@ -34,45 +34,75 @@ class ConnectionsForm(SetupForm):
     def __init__(self):
         super().__init__()
         self.sections = CONNECTION_SECTIONS
-        self.expanded = set(CONNECTION_SECTIONS)
+        self.expanded = set()
+        self.index = 3
 
     def visible(self, ui, height):
         index, scroll = self.index, self.scroll
         super().visible(ui, height)
-        self.rows[0]["text"] = "CONNECTIONS · SHARED BY ALL WAYLAND ROLES"
-        self.rows[1]["text"] = "IBKR login belongs to Gateway/TWS. OpenAI uses OPENAI_API_KEY."
+        advanced = self.rows[2:]
+        providers = ui.data.get("providers", {})
         trading = ui.data.get("trading", {})
 
-        def line(text, action=None):
+        def line(text, action=None, tone="muted"):
             return {
                 "text": text,
                 "action": action,
-                "tone": "accent" if action else "muted",
+                "tone": "accent" if action else tone,
                 "help": "",
                 "header": False,
                 "inset": 0,
                 "copy_text": None,
             }
 
-        self.rows[2:2] = [
-            line("OpenAI: " + ui.data.get("providers", {}).get("openai", {}).get("status", "Not configured")),
-            line("IBKR: " + trading.get("broker_status", "Not connected")),
+        self.rows = [
+            line("CONNECT WAYLAND", tone="accent"),
+            line("Choose a connection below. Wayland opens your browser and checks the result."),
+            line("IBKR · Paper trading account", tone="base"),
+            line("    [I] Sign in to IBKR → browser", "login:ibkr"),
             line(
-                ("Disconnect" if trading.get("broker_enabled") else "Connect") + " IBKR paper · read-only",
-                "broker_toggle",
+                "    " + providers.get("ibkr", {}).get("status", "Not connected"),
+                tone="success" if providers.get("ibkr", {}).get("connected") else "warning",
             ),
+            line("    Login does not unlock orders. Trading reconciliation remains required."),
+            line(""),
+            line("OpenAI · Shared by all analytical roles", tone="base"),
+            line("    [O] Connect OpenAI → browser", "login:openai"),
+            line("    " + providers.get("openai", {}).get("status", "Not connected")),
+            line("    API key setup in the browser. No terminal commands or service restart."),
+            line(""),
+            line("[S] Other settings · appearance, data and risk limits", "settings"),
+            line(""),
+            line("ADVANCED CONNECTION SETTINGS", tone="base"),
+            *advanced,
         ]
+        if "IBKR paper connection" in self.expanded:
+            self.rows.append(line("TWS adapter: " + trading.get("broker_status", "Not connected")))
+            self.rows.append(
+                line(
+                    ("Disconnect" if trading.get("broker_enabled") else "Connect")
+                    + " existing TWS / socket Gateway",
+                    "broker_toggle",
+                )
+            )
         self.index = min(index, len(self.rows) - 1)
         self.scroll = max(0, min(scroll, max(0, len(self.rows) - height)))
         return [
-            {**line, "source_index": i, "setup_selected": i == self.index}
-            for i, line in enumerate(self.rows[self.scroll : self.scroll + height], self.scroll)
+            {**row, "source_index": i, "setup_selected": i == self.index}
+            for i, row in enumerate(self.rows[self.scroll : self.scroll + height], self.scroll)
         ]
 
     def activate(self, ui, index=None, direction=1):
         if index is not None:
             self.index = index
-        if self.rows[self.index]["action"] == "broker_toggle":
+        action = self.rows[self.index]["action"]
+        if action == "settings":
+            ui.panel = "HUB SETTINGS"
+            return
+        if action and action.startswith("login:"):
+            ui.submit("browser_login", provider=action.split(":", 1)[1])
+            return
+        if action == "broker_toggle":
             ui.submit(
                 "broker_connection", enabled=not ui.data.get("trading", {}).get("broker_enabled", False)
             )
@@ -106,7 +136,7 @@ class ConnectionsForm(SetupForm):
             screen,
             height - 3,
             4,
-            "↑↓ Select · Enter Edit · Click to select · Esc Settings",
+            "[I] IBKR login  [O] OpenAI  [S] Settings · ↑↓ Select · Enter Open · Esc Back",
             width - 8,
             ui.styles["muted"],
         )
@@ -114,7 +144,11 @@ class ConnectionsForm(SetupForm):
     def key(self, ui, key):
         import curses
 
-        if key == "\x1b":
+        if key in ("i", "I", "o", "O"):
+            ui.submit("browser_login", provider="ibkr" if key.lower() == "i" else "openai")
+        elif key in ("s", "S"):
+            ui.panel = "HUB SETTINGS"
+        elif key == "\x1b":
             ui.panel, ui.panel_scroll = "HUB SETTINGS", 0
         elif key in (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_PPAGE, curses.KEY_NPAGE):
             delta = -1 if key in (curses.KEY_UP, curses.KEY_PPAGE) else 1

@@ -63,8 +63,8 @@ Audit shows why decisions were accepted, rejected or blocked.
 Plan tracks the selected role's current analysis.
 
 ## Settings
-F10 opens settings. Appearance includes preview, import and default colours.
-F10 → Connections edits the shared OpenAI and IBKR connection settings.
+F10 opens Connections. I opens IBKR browser login; O opens OpenAI browser setup.\nS opens other settings, including appearance, data and risk limits.
+Connections are shared by every role. Advanced settings include the optional TWS adapter.
 Setup edits global quality and risk settings.
 Saved settings apply to new analyses and the next monitor start.
 Settings never unlock LIVE or approve a pending order.
@@ -367,6 +367,13 @@ class Dashboard:
             elif kind == "done":
                 action, result, params = value
                 self.notice = ""
+                if action == "browser_login":
+                    if not webbrowser.open(result["url"], new=2):
+                        self.panel = (
+                            "Browser could not open. Open this local connection link:\n\n" + result["url"]
+                        )
+                    else:
+                        self.notice = "Complete the connection in your browser"
                 if action == "send":
                     pending = self.pending_messages.get(params.get("clientId"))
                     if pending:
@@ -1152,7 +1159,7 @@ class Dashboard:
             h - 1,
             0,
             w - 1,
-            " F1 Help  F2 Tabs  F3 New  F4 Archive  F5 Rename  F6 Context  F10 Settings  Tab Focus  Ctrl+Q Quit",
+            " F1 Help  F2 Tabs  F3 New  F4 Archive  F5 Rename  F6 Context  F10 Connect  Tab Focus  Ctrl+Q Quit",
             "surface",
         )
         if self.panel == "APPEARANCE":
@@ -1253,7 +1260,7 @@ class Dashboard:
             self.notice = "Finish or cancel the current input before opening Settings"
             return
         self.approval = None
-        self.panel, self.panel_scroll = "HUB SETTINGS", 0
+        self.panel, self.panel_scroll = "CONNECTIONS", 0
 
     def hub_action(self, action):
         if action == "m":

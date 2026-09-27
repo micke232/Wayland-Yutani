@@ -67,6 +67,9 @@ def test_real_terminal_start_settings_navigation_and_detach():
             wait_text("Market Analyst")
             wait_text("Coordinator")
             os.write(master, b"\x1b[21~")  # F10
+            wait_text("Sign in to IBKR")
+            wait_text("Connect OpenAI")
+            os.write(master, b"s")
             wait_text("Mouse navigation")
             os.write(master, b"c")
             wait_text("Custom colors")
