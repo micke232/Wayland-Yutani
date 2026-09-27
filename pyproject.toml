@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wayland-trading"
+version = "0.1.0"
+description = "Auditable paper-first trading research with deterministic risk and recovery"
+requires-python = ">=3.12"
+dependencies = ["pydantic>=2.11,<3"]
+
+[project.optional-dependencies]
+openai = ["openai>=2,<3"]
+ibkr = ["ib_async>=2,<3"]
+dev = ["pytest>=8,<10", "ruff>=0.11,<1", "mypy>=1.15,<2"]
+
+[project.scripts]
+wayland = "wayland.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src/wayland"]
+check_untyped_defs = true
+ignore_missing_imports = true
