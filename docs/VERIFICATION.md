@@ -109,3 +109,23 @@ exit with no user prompt. Model responses and fills are controlled test fixtures
 A separate test rejects all analysis/orders for incomplete broker state, and another
 verifies position monitoring continues while reasoning is pending. This is not
 real IBKR paper or real OpenAI verification.
+
+
+## Official-client authentication (0.5.0)
+
+The local credential form and Client Portal Java proxy are removed. Codex CLI
+owns login; Wayland uses stateless, read-only, isolated structured CLI requests.
+A real Codex request using the existing ChatGPT CLI login returned the expected
+connection-test answer. Native IB Gateway 10.50 was installed and discovered.
+No real broker account login or order has been submitted by the implementation.
+
+Regression coverage includes CLI process timeouts/cleanup, rejecting tool activity,
+credential-environment exclusion, using existing login without relogin, opening the
+official IBKR client, and accepting only verified DU paper accounts during discovery.
+The installed terminal is exercised through a PTY, including F10 navigation.
+
+Validation completed for 0.5.0: 129 tests passed, Ruff check/format and mypy passed.
+The installed `~/.local/bin/wayland` passed the PTY test. Its real analytical role
+returned a Codex response and persisted the response audit. The installed package
+contains no `browser_setup` module. Official IB Gateway was opened through the
+connection action; broker login still requires the user's paper credentials.

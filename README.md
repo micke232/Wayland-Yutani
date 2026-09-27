@@ -5,7 +5,8 @@
 Wayland is a paper-first trading research application with durable order intentions,
 explicit reconciliation and an inspectable audit trail. Its initial research scope
 is ORCL bearish rebound/reversal setups using long puts or defined-risk put spreads.
-It is independent of development assistants and their CLI sessions.
+Its trading state and conversations are independent of development assistants.
+Codex CLI owns authentication; Wayland creates fresh ephemeral analysis sessions.
 
 ## Current boundary
 
@@ -14,7 +15,7 @@ It is independent of development assistants and their CLI sessions.
 - The **IBKR adapter is read-only**: paper account verification, positions/orders,
   ORCL/USDSEK data, chain metadata and qualified option quotes. It rejects all
   order and cancel submissions pending real paper lifecycle verification.
-- An isolated OpenAI Responses provider returns validated proposals. It has no
+- An isolated Codex CLI provider returns validated proposals. It has no
   broker tools or credentials. A model error produces no new trade.
 - **LIVE is hard-locked**, regardless of configuration flags.
 - `monitor` refreshes broker state; it does not enable a live market/news feed or
@@ -35,7 +36,7 @@ Audit, Positions, Orders and Setup. F10 opens Connections directly; press S ther
 
 Coordinator collects independent Market, Technical, News and Options reports and
 synthesizes them. Specialists do not receive peer conversations or reports.
-Ordinary chat uses the configured OpenAI API model without order permissions.
+Ordinary chat uses the configured Codex model without order permissions.
 
 Broker observations also drive the autonomous event loop: a qualifying setup,
 verified broker state and qualified option candidates trigger specialist review,
@@ -49,7 +50,7 @@ The real IBKR adapter still reports incomplete execution reconciliation and bloc
 orders. Real broker history, continuous option qualification, live model timing,
 news ingestion and paper soak remain outstanding. Connecting Gateway alone does
 not make the system ready for autonomous IBKR paper trading. Additional prompts are queued visibly in the plan. F10 → Connections
-configures OpenAI and IBKR once for all roles. Setup holds global data quality
+connects Codex and IBKR once for all roles. Setup holds global data quality
 and risk settings. Its changes apply
 to new analyses and the next monitor start, never to an active order.
 
@@ -62,32 +63,32 @@ analysis and conversations remain in that service. `wayland service-stop` stops
 it; `wayland service-restart` restarts it with your current shell environment.
 Connect from **F10**:
 
-- **I — Sign in to IBKR** opens the browser. Wayland prepares the official Client
-  Portal Gateway and, if needed, Java through an existing Homebrew installation.
-  Log in with **paper** credentials; account detection and status checks are automatic.
-  The local gateway uses its own certificate, so the browser may require accepting
-  the localhost certificate. Wayland's API client verifies that specific certificate.
-- **O — Connect OpenAI** opens a browser form with a link to OpenAI's API-key page.
-  Paste the key and choose your API model there. Wayland verifies model access and
-  applies the connection to all roles without environment variables or a restart.
-  Keys are stored in `~/.wayland/secrets` with owner-only permissions, outside chat,
-  settings and audit records. This is API-key setup, not ChatGPT subscription OAuth.
-- **S — Other settings** opens appearance, risk/data limits and diagnostics.
-  Optional TWS socket settings remain under the collapsed advanced sections.
+- **O — Connect Codex CLI:** an existing CLI login is detected automatically.
+  When signed out, Wayland starts the official `codex login` browser flow. There
+  is no Wayland login website, credential form or token copying. The optional
+  model field can be left empty to use Codex's default model.
+- **I — Open IBKR:** opens the installed official IB Gateway or Trader Workstation.
+  Choose **Paper Trading** and log in there. Wayland detects the local paper API
+  and verifies the reported account before saving it. Multiple paper accounts
+  require selecting the desired account in Connections. If the client is missing,
+  the button opens IBKR's official download page.
+- **S — Other settings:** appearance, risk/data limits and diagnostics.
 
-IBKR browser authentication is currently separate from the TWS market-data adapter:
-**authenticated does not mean a trading feed or execution is ready**. The browser
-connection verifies the paper account but does not yet supply market data or orders.
-Wayland stays RECONCILING and execution stays locked. Gateway is supervised so its
-process stops even if the owning Wayland service crashes. Login may need repeating
-when IBKR expires the session. The gateway accepts only loopback client addresses.
+IBKR API access must be enabled in the official client. Wayland uses only local
+paper ports 4002/7497 and read-only requests; it rejects live accounts. Connected
+means the account can be observed, **not** that execution reconciliation is complete.
+Real IBKR order submission remains locked.
 
-OpenAI API billing is separate from CLI/ChatGPT subscriptions. Opening the terminal
-alone does not send an OpenAI request. An explicit Connect verifies the key/model;
-compatibility with structured Responses is verified by subsequent analysis.
+Codex runs with user/project instructions, hooks, apps, plugins, shell/browser tools
+and agent spawning disabled, with read-only sandboxing and ephemeral sessions.
+Each result must pass local schema validation and the existing deterministic risk
+checks. A failed login, quota error, interrupted process or invalid result authorizes
+no new order. Wayland does not import development conversations or reuse thread IDs.
+The former browser form and managed Client Portal proxy have been removed.
 
-Authentication references: [IBKR browser gateway](https://www.interactivebrokers.com/campus/trading-lessons/launching-and-authenticating-the-gateway/)
-and [OpenAI API authentication](https://developers.openai.com/api/reference/overview).
+Authentication references: [Codex authentication](https://learn.chatgpt.com/docs/auth),
+[non-interactive Codex](https://learn.chatgpt.com/docs/non-interactive-mode), and
+[IB Gateway/TWS](https://www.interactivebrokers.com/docs/tws-api/doc/download-tws-or-ib-gateway/download-tws-or-ib-gateway).
 
 ## Install
 
@@ -95,7 +96,7 @@ Python 3.12 or newer, on macOS or Linux:
 
 ```sh
 python3 -m venv .venv
-.venv/bin/python -m pip install -e '.[dev,openai,ibkr]'
+.venv/bin/python -m pip install -e '.[dev,ibkr]'
 .venv/bin/wayland
 .venv/bin/wayland config-example
 .venv/bin/wayland status
@@ -112,8 +113,8 @@ persistent daily limits.
 Save `config-example` output to a JSON file and pass `--config FILE`. The default
 account allowlist is empty: new entries fail closed until configured. No real
 account identifiers or credentials belong in the repository. IB Gateway handles
-broker login; `OPENAI_API_KEY` is supplied to the SDK through the environment.
-A CLI subscription does not supply Wayland's runtime API access.
+broker login. Codex CLI manages model authentication.
+Wayland uses Codex CLI authentication and its applicable model access and usage limits.
 
 ## Operator commands
 

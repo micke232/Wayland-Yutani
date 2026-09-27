@@ -60,7 +60,9 @@ combo/assignment representation and calibrated reconciliation rules.
 
 ## Analysis boundary
 
-The provider uses `AsyncOpenAI.responses.parse(..., text_format=TradeProposal)`.
+The provider uses `codex exec --ephemeral --output-schema` with CLI-owned authentication.
+Executable tools/integrations are disabled and read-only sandboxing remains enforced.
+Python validates the returned JSON independently as `TradeProposal`.
 No tools are exposed. Input is an explicit bounded context, not environment or
 broker objects. SDK retries are disabled; timeout/refusal/malformed response means
 no entry. The exact supplied context, prompt/schema version, requested model,

@@ -4,9 +4,8 @@
 
 Python >=3.12 and the declared extras are required for development/model/Gateway
 features. Keep runtime dependencies in a dedicated venv. No model provider is
-called by status/demo/tests. Configure a model and `OPENAI_API_KEY` explicitly
-before opting into real reasoning. Never copy CLI authentication or development
-agent sessions into Wayland.
+called by status/demo/tests. Use F10 to connect Codex CLI. Existing CLI authentication is reused by the CLI
+itself; credentials and development conversations are never copied into Wayland.
 
 Use a dedicated data root, ordinarily `~/.wayland`, and a single execution service
 per broker account. Back up the full SQLite database through SQLite backup tooling
@@ -19,7 +18,8 @@ logged. Configuration examples contain no account numbers or secrets.
 
 Install/sign in to IB Gateway's **paper** environment separately. API is loopback
 only, paper port 4002 (Gateway) or 7497 (TWS), with a stable nonzero client ID.
-Set the explicit paper account in both `ibkr_account` and `account_allowlist`.
+The terminal connection flow discovers a single paper account automatically and saves
+it in `ibkr_account` and `account_allowlist`; multiple accounts require a selection.
 The adapter checks the reported managed account; port/name conventions alone are
 not a substitute for the operator verifying Gateway's paper session.
 

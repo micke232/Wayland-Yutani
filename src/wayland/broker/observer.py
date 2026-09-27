@@ -9,8 +9,9 @@ from .ibkr import IbkrBroker
 
 
 class BrokerObserver:
-    def __init__(self, runtime, factory=IbkrBroker):
+    def __init__(self, runtime, factory=IbkrBroker, discovery=None):
         self.runtime, self.factory = runtime, factory
+        self.discovery = discovery
         self.stop = threading.Event()
         self.thread = None
         self.autonomy = None
@@ -85,9 +86,32 @@ class BrokerObserver:
         try:
             while not self.stop.is_set():
                 config = self.runtime.settings()
+                if self.discovery:
+                    try:
+                        discovered = await self.discovery(config)
+                        if discovered and "accounts" in discovered:
+                            self.publish(
+                                "Choose a detected paper account in Connections",
+                                accounts=discovered["accounts"],
+                            )
+                            await self.pause(3)
+                            continue
+                        if discovered:
+                            current = config.model_dump(mode="json")
+                            differs = any(
+                                current[key] != ([value] if key == "account_allowlist" else value)
+                                for key, value in discovered.items()
+                            )
+                            if differs:
+                                self.runtime.dispatch("trading_settings", patch=discovered)
+                                config = self.runtime.settings()
+                    except Exception:  # noqa: BLE001 -- no broker payloads in the UI
+                        self.publish("Paper account verification failed · check IBKR login and API settings")
+                        await self.pause(3)
+                        continue
                 if not config.ibkr_account or config.ibkr_account not in config.account_allowlist:
-                    self.publish("Setup required · enter and allowlist the paper account")
-                    await self.pause(2)
+                    self.publish("Waiting for Paper Trading login in IB Gateway / TWS")
+                    await self.pause(3)
                     continue
                 self.publish("Connecting to local paper Gateway")
                 broker = self.factory(config)

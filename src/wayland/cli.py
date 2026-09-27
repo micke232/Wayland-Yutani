@@ -105,7 +105,7 @@ async def inspect_ibkr(settings: Settings, market: bool) -> dict:
 
 
 async def run_monitor(root: Path, settings: Settings, backend: str, once: bool) -> None:
-    from .providers.openai import OpenAIProvider
+    from .providers.codex import CodexProvider
     from .service import WaylandService
 
     broker = (
@@ -121,7 +121,7 @@ async def run_monitor(root: Path, settings: Settings, backend: str, once: bool) 
         await broker.close()
         store.close()
         raise
-    provider = OpenAIProvider(settings, store)
+    provider = CodexProvider(settings, store)
     service = WaylandService(engine, provider)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()

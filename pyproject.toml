@@ -4,13 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wayland-trading"
-version = "0.4.0"
+version = "0.5.0"
 description = "Auditable paper-first trading research with deterministic risk and recovery"
 requires-python = ">=3.12"
 dependencies = ["pydantic>=2.11,<3"]
 
 [project.optional-dependencies]
-openai = ["openai>=2,<3"]
 ibkr = ["ib_async>=2,<3"]
 dev = ["pytest>=8,<10", "ruff>=0.11,<1", "mypy>=1.15,<2"]
 

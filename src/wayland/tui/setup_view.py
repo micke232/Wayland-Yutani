@@ -1,7 +1,7 @@
 """Trading form using Tyrell's focus, row, mouse and prompt-editing conventions."""
 
 CONNECTION_SECTIONS = {
-    "OpenAI API": ["openai_model", "analysis_timeout_seconds", "analysis_cooldown_seconds"],
+    "Codex model": ["openai_model", "analysis_timeout_seconds", "analysis_cooldown_seconds"],
     "IBKR paper connection": [
         "ibkr_account",
         "account_allowlist",
@@ -25,7 +25,7 @@ SECTIONS = {
     "Strategy": ["allowed_symbols", "rebound_fraction", "reversal_fraction"],
 }
 HELP = {
-    "openai_model": "Exact OpenAI API model ID. API access is separate from CLI subscriptions.",
+    "openai_model": "Optional Codex model ID. Leave blank to use the CLI default.",
     "account_allowlist": "Comma-separated paper account IDs. Never add a live account.",
     "ibkr_account": "Paper account ID reported by your local Gateway.",
     "fee_per_contract_sek": "Conservative fee reserve per contract; calibrate before paper execution.",
@@ -85,7 +85,14 @@ class SetupForm:
                     if isinstance(value, list):
                         value = ", ".join(value)
                     add(
-                        "    " + key.replace("_", " ").title() + ": " + (str(value) or "Not configured"),
+                        "    "
+                        + (
+                            "Codex model (optional)"
+                            if key == "openai_model"
+                            else key.replace("_", " ").title()
+                        )
+                        + ": "
+                        + (str(value) or "Not configured"),
                         key,
                         help=HELP.get(key, "Enter edits this value. Settings are validated before saving."),
                     )

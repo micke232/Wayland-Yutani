@@ -1,4 +1,4 @@
-"""Explicit typed configuration; no CLI account discovery or shared agent directories."""
+"""Explicit typed configuration; credentials remain owned by the official clients."""
 
 import json
 from decimal import Decimal
@@ -33,7 +33,7 @@ class Settings(Model):
     ibkr_client_id: int = Field(default=37, gt=0)
     ibkr_account: str = ""
     openai_model: str = ""
-    analysis_timeout_seconds: int = Field(default=30, gt=0, le=120)
+    analysis_timeout_seconds: int = Field(default=120, gt=0, le=600)
     analysis_cooldown_seconds: int = Field(default=300, gt=0)
     rebound_fraction: Decimal = Field(default=Decimal(".01"), gt=0, lt=1)
     reversal_fraction: Decimal = Field(default=Decimal(".005"), gt=0, lt=1)

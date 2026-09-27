@@ -7,15 +7,15 @@ def connections_text(data, demo=False):
     p = data.get("providers", {}).get("openai", {})
     t = data.get("trading", {})
     return (
-        "CONNECTIONS\n\nOpenAI API: "
+        "CONNECTIONS\n\nCodex CLI: "
         + p.get("status", "not configured")
         + "\nModel: "
         + (p.get("model") or "Not configured")
         + "\nIBKR: "
         + t.get("broker_status", "not verified")
         + "\n\nConfigure the model and paper Gateway in F10 → Connections.\n"
-        "Connect OpenAI opens browser setup; no shell configuration needed.\n"
-        "Sign in to IBKR opens its local Client Portal Gateway.\n"
+        "Codex uses your existing CLI login; Connect starts official login if needed.\n"
+        "Open IBKR starts the official IB Gateway or TWS application.\n"
         "Chat is analytical only. It cannot submit orders.\n"
         "Paper execution through IBKR remains disabled."
     )
@@ -57,25 +57,27 @@ class ConnectionsForm(SetupForm):
 
         self.rows = [
             line("CONNECT WAYLAND", tone="accent"),
-            line("Choose a connection below. Wayland opens your browser and checks the result."),
+            line("Use your existing logins. No Wayland login server or proxy."),
             line("IBKR · Paper trading account", tone="base"),
-            line("    [I] Sign in to IBKR → browser", "login:ibkr"),
+            line("    [I] Open IBKR · Paper Trading", "login:ibkr"),
             line(
-                "    " + providers.get("ibkr", {}).get("status", "Not connected"),
-                tone="success" if providers.get("ibkr", {}).get("connected") else "warning",
+                "    " + trading.get("broker_status", "Not connected"),
+                tone="success" if trading.get("brokerObservation", {}).get("connected") else "warning",
             ),
             line("    Login does not unlock orders. Trading reconciliation remains required."),
             line(""),
-            line("OpenAI · Shared by all analytical roles", tone="base"),
-            line("    [O] Connect OpenAI → browser", "login:openai"),
+            line("Codex CLI · Shared by all analytical roles", tone="base"),
+            line("    [O] Connect Codex CLI", "login:codex"),
             line("    " + providers.get("openai", {}).get("status", "Not connected")),
-            line("    API key setup in the browser. No terminal commands or service restart."),
+            line("    Existing CLI login is detected automatically. No API key needed."),
             line(""),
             line("[S] Other settings · appearance, data and risk limits", "settings"),
             line(""),
             line("ADVANCED CONNECTION SETTINGS", tone="base"),
             *advanced,
         ]
+        for account in trading.get("brokerObservation", {}).get("accounts", []):
+            self.rows.insert(5, line("    Use paper account " + account, "account:" + account))
         if "IBKR paper connection" in self.expanded:
             self.rows.append(line("TWS adapter: " + trading.get("broker_status", "Not connected")))
             self.rows.append(
@@ -96,11 +98,15 @@ class ConnectionsForm(SetupForm):
         if index is not None:
             self.index = index
         action = self.rows[self.index]["action"]
+        if action and action.startswith("account:"):
+            account = action.split(":", 1)[1]
+            ui.submit("trading_settings", patch={"ibkr_account": account, "account_allowlist": account})
+            return
         if action == "settings":
             ui.panel = "HUB SETTINGS"
             return
         if action and action.startswith("login:"):
-            ui.submit("browser_login", provider=action.split(":", 1)[1])
+            ui.submit("connect_provider", provider=action.split(":", 1)[1])
             return
         if action == "broker_toggle":
             ui.submit(
@@ -136,7 +142,7 @@ class ConnectionsForm(SetupForm):
             screen,
             height - 3,
             4,
-            "[I] IBKR login  [O] OpenAI  [S] Settings · ↑↓ Select · Enter Open · Esc Back",
+            "[I] Open IBKR  [O] Codex  [S] Settings · ↑↓ Select · Enter Open · Esc Back",
             width - 8,
             ui.styles["muted"],
         )
@@ -145,7 +151,7 @@ class ConnectionsForm(SetupForm):
         import curses
 
         if key in ("i", "I", "o", "O"):
-            ui.submit("browser_login", provider="ibkr" if key.lower() == "i" else "openai")
+            ui.submit("connect_provider", provider="ibkr" if key.lower() == "i" else "codex")
         elif key in ("s", "S"):
             ui.panel = "HUB SETTINGS"
         elif key == "\x1b":

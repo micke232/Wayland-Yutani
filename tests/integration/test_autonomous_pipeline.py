@@ -8,13 +8,13 @@ from wayland.config import Settings, app_root
 from wayland.demo import fixture
 from wayland.models import utcnow
 from wayland.operator import OperatorRuntime
-from wayland.providers.openai import OpenAIProvider
+from wayland.providers.codex import CodexProvider
 
 
 def test_market_event_runs_specialists_risk_order_and_exit_without_prompts(tmp_path, monkeypatch):
     runtime = OperatorRuntime(app_root(tmp_path))
     config = Settings(account_allowlist=("SIMULATED-PAPER",), openai_model="fixture-model")
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key-not-real")
+    runtime.connections.publish(True, "Connected · test CLI")
     market, _, proposal = fixture()
     calls = []
 
@@ -35,7 +35,7 @@ def test_market_event_runs_specialists_risk_order_and_exit_without_prompts(tmp_p
         )
 
     monkeypatch.setattr(runtime, "model_reply", specialist)
-    monkeypatch.setattr(OpenAIProvider, "analyze", strategist)
+    monkeypatch.setattr(CodexProvider, "analyze", strategist)
 
     async def run():
         broker = PaperBroker(tmp_path / "broker.sqlite")

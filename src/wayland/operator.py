@@ -13,7 +13,6 @@ from typing import Any
 from .agents import COORDINATOR_ID, REGISTRY
 from .audit import AuditStore, ExecutionLease
 from .config import Settings, load_settings
-from .credentials import api_key
 from .models import utcnow
 
 
@@ -24,12 +23,13 @@ class OperatorRuntime:
         self.active: dict[str, threading.Event] = {}
         self.delegated: dict[str, threading.Event] = {}
         self.autonomous_roles: set[str] = set()
+        from .broker.discovery import discover
         from .broker.observer import BrokerObserver
 
-        self.broker_observer = BrokerObserver(self)
-        from .browser_setup import BrowserSetup
+        self.broker_observer = BrokerObserver(self, discovery=discover)
+        from .connections import Connections
 
-        self.browser_setup = BrowserSetup(self)
+        self.connections = Connections(self)
         with self.store() as store:
             if store.get("ui:threads") is None:
                 threads = {}
@@ -82,7 +82,7 @@ class OperatorRuntime:
                 self.message(
                     "agentMessage",
                     purpose
-                    + ".\n\nThis is Wayland's analytical workspace. Configure the shared OpenAI API model in F10 → Connections. Chat cannot place orders. Broker state is not verified until reconciliation succeeds.",
+                    + ".\n\nThis is Wayland's analytical workspace. Configure the shared Codex model in F10 → Connections. Chat cannot place orders. Broker state is not verified until reconciliation succeeds.",
                 )
             ],
             "plan": [],
@@ -134,15 +134,7 @@ class OperatorRuntime:
                 ]
                 trading["market"] = observation.get("market")
         trading["broker_enabled"] = store.get("broker:enabled", False)
-        portal = self.browser_setup.portal.snapshot()
-        if portal.get("connected"):
-            trading["broker_status"] = "Browser authenticated · trading feed not connected"
-        info = store.get("ui:provider", {}) if api_key(self.root) else {}
-        provider_status = info.get("status") or (
-            "Credentials present · not verified"
-            if api_key(self.root)
-            else "Not connected · Sign in from Connections"
-        )
+        provider = self.connections.snapshot()
         result = {
             "connected": True,
             "tasks": [],
@@ -152,8 +144,7 @@ class OperatorRuntime:
             "settings": store.get("ui:settings", {"mouseEnabled": True}),
             "tradingSettings": config.model_dump(mode="json"),
             "providers": {
-                "openai": {"status": provider_status, "model": config.openai_model},
-                "ibkr": self.browser_setup.portal.snapshot(),
+                "openai": {**provider, "model": config.openai_model or "Codex default"},
             },
             "setupRevision": store.get("ui:revision", 0),
         }
@@ -171,20 +162,15 @@ class OperatorRuntime:
             result[bucket] = {}
             for tid, thread in all_threads.items():
                 if thread.get("bucket") == bucket:
-                    shown = dict(thread, model=config.openai_model or "Not configured")
+                    shown = dict(thread, model=config.openai_model or "Codex default")
                     shown["items"] = thread["items"] + audit_items
                     result[bucket][tid] = shown
         return result
 
     def dispatch(self, action, **params):
         with self.lock, self.store() as store:
-            if action == "browser_login":
-                provider = params.get("provider")
-                if provider == "ibkr":
-                    self.broker_observer.shutdown()
-                    store.set("broker:enabled", False)
-                    store.set("browser:ibkr_enabled", True)
-                return self.browser_setup.start(provider)
+            if action == "connect_provider":
+                return self.connections.connect(params.get("provider"))
             if action in ("snapshot", "diagnostics"):
                 return self.snapshot(store)
             threads = store.get("ui:threads", {})
@@ -251,7 +237,7 @@ class OperatorRuntime:
                 thread["startedAt"] = time.time()
                 thread["plan"] = [
                     {"step": "Inspect supplied trading context", "status": "completed"},
-                    {"step": "Answer through the configured OpenAI API model", "status": "inProgress"},
+                    {"step": "Answer through the configured Codex model", "status": "inProgress"},
                 ]
                 cancel = threading.Event()
                 self.active[tid] = cancel
@@ -321,8 +307,8 @@ class OperatorRuntime:
         config = self.settings()
         reply, failed = "", False
         try:
-            if not config.openai_model or not api_key(self.root):
-                reply = "Analysis is waiting for configuration. Set the shared OpenAI API model in F10 → Connections and choose Connect OpenAI to finish setup in your browser. CLI login does not supply API access. No order was sent."
+            if not self.connections.snapshot()["connected"]:
+                reply = "Analysis is waiting for configuration. Open F10 and connect Codex CLI. Existing CLI login is reused automatically. No order was sent."
                 failed = True
             else:
                 if tid == COORDINATOR_ID:
@@ -367,8 +353,9 @@ class OperatorRuntime:
                 store.set("ui:threads", threads)
 
     async def model_reply(self, tid, text, context, config, cancel):
-        from openai import AsyncOpenAI
         from pydantic import BaseModel, ConfigDict
+
+        from .providers.cli_transport import analyze
 
         class AnalyticalReply(BaseModel):
             model_config = ConfigDict(extra="forbid")
@@ -380,9 +367,7 @@ class OperatorRuntime:
             supplied["analyst_reports"] = context["analyst_reports"]
         with self.store() as store:
             thread = store.get("ui:threads")[tid]
-            from openai.types.responses import ResponseInputParam
-
-            history: ResponseInputParam = [
+            history = [
                 {"role": "user" if i["type"] == "userMessage" else "assistant", "content": i["text"]}
                 for i in thread["items"][-20:]
                 if i["type"] in ("userMessage", "agentMessage")
@@ -410,43 +395,35 @@ class OperatorRuntime:
                 },
                 correlation,
             )
-        async with AsyncOpenAI(
-            api_key=api_key(self.root), timeout=config.analysis_timeout_seconds, max_retries=0
-        ) as client:
-            task = asyncio.create_task(
-                client.responses.parse(
-                    model=config.openai_model,
-                    instructions=instructions,
-                    input=history,
-                    text_format=AnalyticalReply,
-                    store=False,
-                    max_output_tokens=2000,
-                )
-            )
-            try:
-                while not task.done():
-                    if cancel.is_set():
-                        task.cancel()
-                        try:
-                            await task
-                        except asyncio.CancelledError:
-                            pass
-                        return ""
-                    await asyncio.sleep(0.1)
-                response = await task
-            finally:
-                if not task.done():
+        task = asyncio.create_task(
+            analyze(self.root, config, instructions, history, AnalyticalReply.model_json_schema())
+        )
+        try:
+            while not task.done():
+                if cancel.is_set():
                     task.cancel()
-            if response.status != "completed" or response.output_parsed is None:
-                raise ValueError("Incomplete or refused analysis")
-            with self.store() as store:
-                store.event(
-                    "ui.analysis.response",
-                    {"id": response.id, "model": response.model, "answer": response.output_parsed.answer},
-                    correlation,
-                )
-                store.set("ui:provider", {"status": "Verified by successful API response"})
-            return response.output_parsed.answer
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+                    return ""
+                await asyncio.sleep(0.1)
+            response = await task
+        finally:
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+        answer = AnalyticalReply.model_validate(response.output).answer
+        with self.store() as store:
+            store.event(
+                "ui.analysis.response",
+                {"id": response.id, "model": response.model, "answer": answer, "provider": "codex-cli"},
+                correlation,
+            )
+        return answer
 
 
 def serve(root: Path):
@@ -454,10 +431,10 @@ def serve(root: Path):
 
     lease = ExecutionLease(root / "state/ui-service.sqlite")
     runtime = OperatorRuntime(root)
+    runtime.connections.start()
     with runtime.store() as store:
-        if store.get("browser:ibkr_enabled", False):
-            runtime.browser_setup.portal.start()
-        elif store.get("broker:enabled", False):
+        store.set("browser:ibkr_enabled", False)
+        if store.get("broker:enabled", False):
             runtime.broker_observer.start()
     path = socket_path(root)
     path.unlink(missing_ok=True)
@@ -496,7 +473,7 @@ def serve(root: Path):
         server.serve_forever(poll_interval=0.2)
     finally:
         runtime.broker_observer.shutdown()
-        runtime.browser_setup.close()
+        runtime.connections.close()
         for cancel in list(runtime.active.values()):
             cancel.set()
         server.server_close()

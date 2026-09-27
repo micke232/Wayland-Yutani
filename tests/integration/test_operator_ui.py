@@ -176,7 +176,7 @@ def test_additional_prompt_is_queued_and_plan_updates(runtime, monkeypatch):
     import asyncio
     import threading
 
-    monkeypatch.setenv("OPENAI_API_KEY", "test-only-not-a-real-key")
+    runtime.connections.publish(True, "Connected · test CLI")
     runtime.dispatch("trading_settings", patch={"openai_model": "test-model"})
     gate = threading.Event()
     calls = []
@@ -228,24 +228,10 @@ def test_model_chat_has_no_tools_and_audits_model(runtime, monkeypatch):
     from wayland.config import Settings
 
     response = SimpleNamespace(
-        id="test-response",
-        model="reported-test-model",
-        status="completed",
-        output_parsed=SimpleNamespace(answer="Evidence is insufficient."),
+        id="test-response", model="reported-test-model", output={"answer": "Evidence is insufficient."}
     )
     parse = AsyncMock(return_value=response)
-
-    class Client:
-        def __init__(self, **kwargs):
-            self.responses = SimpleNamespace(parse=parse)
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            pass
-
-    monkeypatch.setattr("openai.AsyncOpenAI", Client)
+    monkeypatch.setattr("wayland.providers.cli_transport.analyze", parse)
     tid = next(iter(runtime.dispatch("snapshot")["threads"]))
     result = asyncio.run(
         runtime.model_reply(
@@ -257,10 +243,9 @@ def test_model_chat_has_no_tools_and_audits_model(runtime, monkeypatch):
         )
     )
     assert result == "Evidence is insufficient."
-    args = parse.call_args.kwargs
-    assert "tools" not in args
-    assert args["store"] is False
-    assert "DO-NOT-SEND" not in args["instructions"]
+    args = parse.call_args.args
+    assert "DO-NOT-SEND" not in args[2]
+    assert args[4]["additionalProperties"] is False
     with runtime.store() as store:
         events = store.recent()
         assert any("reported-test-model" in e["payload"] for e in events)
@@ -272,7 +257,7 @@ def test_connections_are_global_and_removed_from_setup(ui, runtime):
     assert not any(row["action"] in ("openai_model", "ibkr_account") for row in ui.setup.rows)
     ui.key(curses.KEY_F10)
     ui.hub_action("h")
-    ui.connections.expanded.add("OpenAI API")
+    ui.connections.expanded.add("Codex model")
     render(ui)
     assert ui.panel == "CONNECTIONS"
     field = next(i for i, row in enumerate(ui.connections.rows) if row["action"] == "openai_model")
@@ -313,7 +298,7 @@ def test_connection_buttons_open_browser_and_preserve_prompt(ui, runtime, size):
     ui.buffer = "An unfinished trading question"
     with (
         patch.object(
-            runtime.browser_setup, "start", return_value={"url": "http://127.0.0.1:42100/test/openai"}
+            runtime.connections, "connect", return_value={"message": "Connected using existing CLI login"}
         ) as start,
         patch("wayland.tui.ui.webbrowser.open", return_value=True) as browser,
     ):
@@ -323,7 +308,7 @@ def test_connection_buttons_open_browser_and_preserve_prompt(ui, runtime, size):
         assert ui.connections.rows[ui.connections.index]["action"] == "login:ibkr"
         ui.key("o")
         ui.update()
-        start.assert_called_once_with("openai")
-        browser.assert_called_once()
+        start.assert_called_once_with("codex")
+        browser.assert_not_called()
         assert ui.buffer == "An unfinished trading question"
         assert ui.wizard is None

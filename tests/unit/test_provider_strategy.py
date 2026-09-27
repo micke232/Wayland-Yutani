@@ -3,7 +3,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from wayland.providers.openai import OpenAIProvider
+from wayland.providers.codex import CodexProvider
 from wayland.strategy import SetupDetector
 
 
@@ -17,7 +17,7 @@ def test_provider_success_is_auditable(engine, sample):
         output_parsed=proposal,
     )
     client = SimpleNamespace(responses=SimpleNamespace(parse=AsyncMock(return_value=response)))
-    provider = OpenAIProvider(
+    provider = CodexProvider(
         engine.settings.model_copy(update={"openai_model": "fixture-alias"}), engine.store, client
     )
     result = asyncio.run(
@@ -47,7 +47,7 @@ def test_provider_failure_refusal_and_invalid_response_wait(engine, sample):
             else AsyncMock(return_value=outcome)
         )
         client = SimpleNamespace(responses=SimpleNamespace(parse=method))
-        provider = OpenAIProvider(
+        provider = CodexProvider(
             engine.settings.model_copy(update={"openai_model": "fixture"}), engine.store, client
         )
         assert asyncio.run(provider.analyze({"market": market.model_dump(mode="json")})) is None

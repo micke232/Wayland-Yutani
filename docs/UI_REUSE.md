@@ -15,7 +15,7 @@ The runtime boundary is replaced rather than connected to Tyrell:
 - Independent role IDs, conversations and UI preferences in Wayland's SQLite DB.
 - Trading setup replaces repository, worktree and development-tool permissions.
 - Market, positions, orders and audit replace developer-specific content.
-- Direct OpenAI API analytical chat; no Codex/Copilot/OpenCode CLI discovery.
+- Stateless Codex CLI analytical chat using CLI-owned login; no imported CLI conversations.
 - No Tyrell database, agent sessions, provider processes or credentials are read.
 
 Role archive/hide operations affect presentation only, never actual positions,

@@ -52,8 +52,8 @@ Esc returns to Chat. PgUp/PgDn and the wheel scroll history.
 ## Roles and conversation
 F3 creates an analytical role. F5 renames it. F4 opens the archive.
 Type / to browse commands. Up/Down selects; Tab or Enter inserts.
-Chat uses the configured OpenAI API model. It cannot place orders.
-An API key and model are required; CLI subscriptions are separate.
+Chat uses Codex CLI with its existing login. It cannot place orders.
+If needed, Connect starts the official Codex browser login.
 Ctrl+Q closes this view; the independent Wayland service keeps running.
 
 ## Trading views
@@ -63,8 +63,8 @@ Audit shows why decisions were accepted, rejected or blocked.
 Plan tracks the selected role's current analysis.
 
 ## Settings
-F10 opens Connections. I opens IBKR browser login; O opens OpenAI browser setup.\nS opens other settings, including appearance, data and risk limits.
-Connections are shared by every role. Advanced settings include the optional TWS adapter.
+F10 opens Connections. I opens the official IBKR client; O connects Codex CLI.\nS opens other settings, including appearance, data and risk limits.
+Connections are shared by every role. Advanced settings include the optional IBKR adapter.
 Setup edits global quality and risk settings.
 Saved settings apply to new analyses and the next monitor start.
 Settings never unlock LIVE or approve a pending order.
@@ -367,13 +367,13 @@ class Dashboard:
             elif kind == "done":
                 action, result, params = value
                 self.notice = ""
-                if action == "browser_login":
-                    if not webbrowser.open(result["url"], new=2):
+                if action == "connect_provider":
+                    if result.get("url") and not webbrowser.open(result["url"], new=2):
                         self.panel = (
-                            "Browser could not open. Open this local connection link:\n\n" + result["url"]
+                            "Browser could not open. Open the official download page:\n\n" + result["url"]
                         )
                     else:
-                        self.notice = "Complete the connection in your browser"
+                        self.notice = result.get("message", "")
                 if action == "send":
                     pending = self.pending_messages.get(params.get("clientId"))
                     if pending:
@@ -797,7 +797,7 @@ class Dashboard:
             self.put(screen, 3, copy_x, "[Copy]", 6, s["accent" if has_selection else "muted"] | bold)
             self.hit_copy = (copy_x, copy_x + 6, 3)
         self.put(screen, 3, x + width - 5, "[Esc]", 5, s["accent"])
-        model = "OpenAI API · " + (t.get("model") or "Not configured")
+        model = "Codex CLI · " + (t.get("model") or "Not configured")
         self.put(screen, 4, x, model, width, s["accent"])
         tab_y = 6
         trading = self.data.get("trading", {})

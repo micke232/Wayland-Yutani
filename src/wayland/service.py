@@ -8,12 +8,12 @@ from .execution import ExecutionEngine
 from .market import candidates
 from .models import Action, MarketSnapshot, OperatingState, utcnow
 from .positions import PositionManager
-from .providers.openai import OpenAIProvider
+from .providers.codex import CodexProvider
 from .strategy import SetupDetector
 
 
 class WaylandService:
-    def __init__(self, engine: ExecutionEngine, provider: OpenAIProvider):
+    def __init__(self, engine: ExecutionEngine, provider: CodexProvider):
         self.engine, self.provider = engine, provider
         self.detector = SetupDetector(engine.settings, engine.store)
         self.analysis_lock = asyncio.Lock()

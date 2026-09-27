@@ -6,12 +6,11 @@ import time
 
 from ..agents import COORDINATOR_ID
 from ..coordination import coordinate
-from ..credentials import api_key
 from ..models import TradeProposal
-from .openai import OpenAIProvider
+from .codex import CodexProvider
 
 
-class CoordinatorProvider(OpenAIProvider):
+class CoordinatorProvider(CodexProvider):
     def __init__(self, settings, store, runtime):
         super().__init__(settings, store)
         self.runtime = runtime
@@ -25,7 +24,7 @@ class CoordinatorProvider(OpenAIProvider):
             if not thread or thread.get("bucket") != "threads" or COORDINATOR_ID in runtime.active:
                 store.event("analysis.wait", {"reason": "coordinator_unavailable"})
                 return None
-            if not self.settings.openai_model or not api_key(runtime.root):
+            if not runtime.connections.snapshot()["connected"]:
                 store.set("analysis_healthy", False)
                 store.event("analysis.wait", {"reason": "runtime_api_not_configured"})
                 return None

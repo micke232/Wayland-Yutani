@@ -1,4 +1,4 @@
-"""Direct Responses API; analysis only, no tools, broker objects or CLI sessions."""
+"""Codex CLI proposals; local validation and deterministic risk remain authoritative."""
 
 import asyncio
 import json
@@ -6,7 +6,6 @@ from typing import Any
 
 from ..audit import AuditStore
 from ..config import Settings
-from ..credentials import api_key
 from ..models import TradeProposal
 
 PROMPT_VERSION = "wayland-strategist-v1"
@@ -19,7 +18,7 @@ For WAIT use zero quantity and null instrument/candidate/position/cost/loss/inva
 A model estimate is not a risk approval. Do not use external tools."""
 
 
-class OpenAIProvider:
+class CodexProvider:
     def __init__(self, settings: Settings, store: AuditStore, client: Any = None):
         self.settings, self.store, self.client = settings, store, client
 
@@ -43,27 +42,30 @@ class OpenAIProvider:
             correlation,
         )
         try:
-            if not self.settings.openai_model:
-                raise ValueError("model_not_configured")
-            if self.client is None:
-                from openai import AsyncOpenAI
-
-                self.client = AsyncOpenAI(
-                    api_key=api_key(self.store.path.parent.parent),
-                    timeout=self.settings.analysis_timeout_seconds,
-                    max_retries=0,
+            if self.client is not None:
+                response = await asyncio.wait_for(
+                    self.client.responses.parse(
+                        model=self.settings.openai_model,
+                        instructions=SYSTEM,
+                        input=payload,
+                        text_format=TradeProposal,
+                        store=False,
+                        max_output_tokens=4096,
+                    ),
+                    self.settings.analysis_timeout_seconds,
                 )
-            response = await asyncio.wait_for(
-                self.client.responses.parse(
-                    model=self.settings.openai_model,
-                    instructions=SYSTEM,
-                    input=payload,
-                    text_format=TradeProposal,
-                    store=False,
-                    max_output_tokens=4096,
-                ),
-                self.settings.analysis_timeout_seconds,
-            )
+            else:
+                from .cli_transport import analyze
+
+                response = await analyze(
+                    self.store.path.parent.parent,
+                    self.settings,
+                    SYSTEM,
+                    context,
+                    TradeProposal.model_json_schema(),
+                )
+                response.output_text = json.dumps(response.output)
+                response.output_parsed = TradeProposal.model_validate_json(response.output_text)
             self.store.event(
                 "analysis.response",
                 {
