@@ -58,6 +58,8 @@ You → Coordinator → specialist → Coordinator → you.
 Specialists do not message each other or read each other's conversations.
 A qualifying market event automatically requests up to four independent reports,
 then a typed proposal (maximum five model requests). Ordinary quotes do not call models.
+Chat coordination first plans distinct assignments, then requests four reports and a synthesis
+(maximum six model requests). Specialists receive scoped evidence and new request IDs.
 The risk engine gates execution; no prompt or per-order approval is required.
 You can also request a coordinated review through chat, which remains analytical.
 Full IBKR execution reconciliation is still required before real paper orders.

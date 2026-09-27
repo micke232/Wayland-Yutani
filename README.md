@@ -163,3 +163,39 @@ to SEK, plus fresh underlying, FX and option quotes. Missing subscriptions,
 closed-market quotes or incomplete order history block new entries. F10 shows
 the connection and data blockers. The application never assumes a timed-out order
 failed, never automatically resends it, and does not route native spreads.
+
+
+### Coordinator and specialist runs
+
+Wayland's Python runtime controls the fixed four-role agent chain:
+`AgentOrchestrator → SpecialistRunner → model provider → validated reports → Coordinator`.
+The existing isolated Codex CLI transport is reused. Models have no agent-launch
+or broker-order tools.
+
+Chat coordination prepares four distinct, role-specific assignments. Each specialist
+receives a new request and its own evidence envelope, with no peer conversations or
+previous reports. Up to four requests execute concurrently. A timeout/failure produces
+an explicit missing report while the other specialists continue. The Coordinator
+receives schema-validated reports with run IDs and timestamps, not internal chat history.
+Automatic market-event analysis uses the same orchestrator; proposals still pass
+through the independent RiskEngine/ExecutionEngine.
+
+Inspect the latest run or a particular run:
+
+```sh
+wayland runs
+wayland runs --run-id <coordinator-run-id> --json
+```
+
+Test the production orchestration layer without IBKR, model credentials or network
+calls using explicitly synthetic providers:
+
+```sh
+wayland orchestration-demo
+wayland runs --demo --json
+```
+
+Fixture runs live under `~/.wayland/data/orchestration-demo/`, separately from normal
+runtime runs. Audit records retain the original requests, context references and
+context payloads, start/end times, provider/model, statuses and validated results.
+Interrupted runs are marked on service restart and never silently replayed.

@@ -156,6 +156,14 @@ def main() -> None:
     commands.add_parser("demo", help="Run synthetic entry/risk/fill/exit flow in isolated demo databases")
     commands.add_parser("config-example", help="Print safe default settings")
     commands.add_parser("audit", help="Print recent persisted audit events")
+    runs = commands.add_parser("runs", help="Inspect persisted coordinator/specialist runs")
+    runs.add_argument("--run-id")
+    runs.add_argument("--json", action="store_true")
+    runs.add_argument("--demo", action="store_true", help="Inspect isolated fixture runs")
+    chain = commands.add_parser(
+        "orchestration-demo", help="Test the agent chain with fixtures; no broker or model calls"
+    )
+    chain.add_argument("--json", action="store_true")
     kill = commands.add_parser(
         "kill", help="Persist entry kill switch; risk-reducing exits remain policy-gated"
     )
@@ -206,7 +214,20 @@ def main() -> None:
 
             serve(root)
             return
-        if args.command == "status":
+        if args.command in ("runs", "orchestration-demo"):
+            from .orchestration import RunJournal, render_run
+
+            if args.command == "orchestration-demo":
+                from .orchestration_demo import run_demo
+
+                record = asyncio.run(run_demo(root))
+            else:
+                path = root / (
+                    "data/orchestration-demo/wayland.sqlite" if args.demo else "state/wayland.sqlite"
+                )
+                record = RunJournal(path).read(args.run_id)
+            print(encode(record) if args.json else render_run(record))
+        elif args.command == "status":
             print(encode(status(root)))
         elif args.command == "demo":
             print(encode(asyncio.run(demo(root))))

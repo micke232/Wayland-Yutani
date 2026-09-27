@@ -146,3 +146,26 @@ No native paper order or real fill has been claimed verified. Live stays hard-lo
 The historical read-only-only statements above describe prior versions.
 
 0.6.0 validation: 154 automated tests, Ruff, mypy and installed-terminal PTY checks passed.
+
+
+## Deterministic specialist orchestration — 0.7.0
+
+Validation: 172 tests passed; Ruff lint/format and mypy passed (52 source files).
+The installed 0.7.0 wheel separately passed the real terminal PTY test, including
+startup, role sidebar, F10 navigation and detach. Its broker-free orchestration-demo
+completed all four specialists and persisted an inspectable run tree.
+
+Tests cover unique IDs, four concurrent model requests, context isolation, scoped
+assignments, validated delivery to Coordinator, independent failure and timeout,
+stale/mismatched response rejection, audit-only reconstruction, cancellation and
+interrupted-run recovery. Chat and market-event paths share the same orchestrator.
+Broker/ExecutionEngine calls are forbidden in the chat integration test; existing
+RiskEngine and LIVE-lock regression tests remain passing.
+
+A separate real Codex CLI test used no broker connection and no market data.
+Coordinator run 1b16dad4-4cea-42f8-812b-a4a608ccae05 completed scoped planning, four
+independent specialist requests and final synthesis. All four requests overlapped
+(start spread 0.039 seconds). The final answer identified each current request and
+its missing evidence and did not create a TradeProposal. This verifies the model
+chain, not market-data quality or broker execution. CLI transport does not expose
+a unique provider response ID; Wayland's own unique request IDs remain authoritative.

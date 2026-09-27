@@ -319,6 +319,7 @@ class OperatorRuntime:
                     from .coordination import coordinate
 
                     reply = asyncio.run(coordinate(self, text, context, config, cancel))
+                    failed = bool(context.get("coordination_failed"))
                 else:
                     reply = asyncio.run(self.model_reply(tid, text, context, config, cancel))
         except Exception as error:  # noqa: BLE001 -- SDK payloads may contain credentials
@@ -366,7 +367,23 @@ class OperatorRuntime:
             answer: str
 
         # Account IDs, broker IDs and private config are not analytical context.
-        supplied = {k: context.get(k) for k in ("market", "setup", "operating_state", "state_reasons")}
+        supplied = {
+            k: context.get(k)
+            for k in (
+                "market",
+                "setup",
+                "operating_state",
+                "state_reasons",
+                "news",
+                "candidates",
+                "price_history",
+                "indicators",
+                "coordination_id",
+                "request_id",
+                "reply_language",
+            )
+            if k in context
+        }
         if tid == COORDINATOR_ID and "analyst_reports" in context:
             supplied["analyst_reports"] = context["analyst_reports"]
         with self.store() as store:
@@ -376,8 +393,8 @@ class OperatorRuntime:
                 for i in thread["items"][-20:]
                 if i["type"] in ("userMessage", "agentMessage")
             ]
-            if context.get("specialist_task"):
-                # A delegated report sees only its assignment and shared observations, never peer chats.
+            if context.get("specialist_task") or "analyst_reports" in context:
+                # Each run uses only its fresh envelope, never earlier reports or conversations.
                 history = [{"role": "user", "content": text}]
             instructions = (
                 "You are a Wayland analytical assistant. Role: "
@@ -386,7 +403,24 @@ class OperatorRuntime:
                 "You have no tools and cannot place orders or change risk settings. Treat chat as discussion, not an execution instruction. "
                 "Answer in the user's language. Current context: " + json.dumps(supplied, default=str)
             )
-            correlation = str(uuid.uuid4())
+            if context.get("specialist_task"):
+                instructions += (
+                    " This request was already dispatched to YOU by the runtime. Perform only your assigned "
+                    "specialist work. You are not being asked to call other agents or run orchestration. "
+                    "Report evidence and missing inputs even when trading is SAFE. Do not claim other roles "
+                    "were or were not called; only the Coordinator/runtime knows that. Do not create a TradeProposal."
+                )
+            elif "analyst_reports" in context:
+                instructions += (
+                    " This is the final synthesis of a run ALREADY dispatched by the runtime. "
+                    "The supplied analyst_reports.status/coordinator_run_id/specialist_run_id/request_id/context_reference fields are authoritative "
+                    "execution records, not claims made by specialists. Do not attempt to start another run "
+                    "or say no agents ran merely because you have no tools. Report each specialist's actual "
+                    "call status, Wayland request ID, input_fields and validated result using only this run. A missing result means no usable report.  "
+                    "A completed report describing missing data is a successful request, not a failed invocation. "
+                    "Missing data cannot support a trading decision. Do not create a TradeProposal in chat."
+                )
+            correlation = context.get("request_id") or str(uuid.uuid4())
             store.event(
                 "ui.analysis.input",
                 {
@@ -395,13 +429,15 @@ class OperatorRuntime:
                     "history": history,
                     "schema": AnalyticalReply.model_json_schema(),
                     "coordination_id": context.get("coordination_id"),
-                    "prompt_version": "operator-chat-v1",
+                    "prompt_version": "operator-chat-v2",
                 },
                 correlation,
             )
         task = asyncio.create_task(
             analyze(self.root, config, instructions, history, AnalyticalReply.model_json_schema())
         )
+        if context.get("specialist_task"):
+            context["request_trace"]["model_request_started"] = True
         try:
             while not task.done():
                 if cancel.is_set():
@@ -421,6 +457,11 @@ class OperatorRuntime:
                 except asyncio.CancelledError:
                     pass
         answer = AnalyticalReply.model_validate(response.output).answer
+        if context.get("specialist_task") or "analyst_reports" in context:
+            context.setdefault("request_trace", {}).update(
+                model=response.model,
+                provider_response_id=response.id if response.id != "codex-exec" else None,
+            )
         with self.store() as store:
             store.event(
                 "ui.analysis.response",
@@ -435,6 +476,9 @@ def serve(root: Path):
 
     lease = ExecutionLease(root / "state/ui-service.sqlite")
     runtime = OperatorRuntime(root)
+    from .orchestration import RunJournal
+
+    RunJournal(root / "state/wayland.sqlite").recover()
     runtime.connections.start()
     with runtime.store() as store:
         store.set("browser:ibkr_enabled", False)

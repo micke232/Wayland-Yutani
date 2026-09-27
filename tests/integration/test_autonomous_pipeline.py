@@ -8,6 +8,8 @@ from wayland.config import Settings, app_root
 from wayland.demo import fixture
 from wayland.models import utcnow
 from wayland.operator import OperatorRuntime
+from wayland.orchestration import RunJournal
+from wayland.orchestration_demo import FixtureSpecialistProvider
 from wayland.providers.codex import CodexProvider
 
 
@@ -18,10 +20,13 @@ def test_market_event_runs_specialists_risk_order_and_exit_without_prompts(tmp_p
     market, _, proposal = fixture()
     calls = []
 
-    async def specialist(tid, text, context, settings, cancel):
-        assert tid != COORDINATOR_ID
-        calls.append(tid)
-        return "Independent specialist evidence"
+    class Specialist(FixtureSpecialistProvider):
+        async def analyze(self, request):
+            assert request.role != COORDINATOR_ID
+            calls.append(request.role)
+            return await super().analyze(request)
+
+    runtime.specialist_provider = Specialist()
 
     async def strategist(self, context):
         calls.append(COORDINATOR_ID)
@@ -34,7 +39,6 @@ def test_market_event_runs_specialists_risk_order_and_exit_without_prompts(tmp_p
             }
         )
 
-    monkeypatch.setattr(runtime, "model_reply", specialist)
     monkeypatch.setattr(CodexProvider, "analyze", strategist)
 
     async def run():
@@ -49,6 +53,10 @@ def test_market_event_runs_specialists_risk_order_and_exit_without_prompts(tmp_p
                 if i < 2:
                     assert not calls
             assert calls == [r.agent_id for r in SPECIALISTS] + [COORDINATOR_ID]
+            run = RunJournal(runtime.root / "state/wayland.sqlite").read()
+            assert run["trigger"] == "market_event" and run["status"] == "COMPLETED"
+            assert len(run["specialists"]) == 4
+            assert all(r["status"] == "COMPLETED" for r in run["specialists"].values())
             orders = (await broker.snapshot()).orders
             assert len(orders) == 1
             assert orders[0].state == "OPEN"

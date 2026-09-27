@@ -89,3 +89,17 @@ observer's underlying/FX snapshots are not yet a complete options/news feed.
 - [x] Adapter boundary tests for restart, lost acknowledgement and conflicting state.
 - [ ] Real paper market-session lifecycle/soak (requires usable market data).
 - [ ] Guaranteed combo execution, leg/correction/assignment verification. Native spreads remain disabled.
+
+
+## Deterministic agent orchestration — 0.7.0
+
+- [x] Typed coordinator run, specialist request/run/report and provider reply.
+- [x] Fixed-role Python dispatch, independent JSON contexts, bounded four-way concurrency.
+- [x] Scoped assignment planning; original coordinator instructions are not broadcast.
+- [x] Unique parent/child/request IDs, context references, timestamps, provider/model and results in audit.
+- [x] Per-specialist timeout/failure/cancellation; missing results remain explicit.
+- [x] Fresh chat requests and market-event reviews use the same AgentOrchestrator.
+- [x] No previous conversation/report history in delegated requests or fresh synthesis.
+- [x] Run inspection CLI and isolated broker-free fixture demo.
+- [x] Startup recovery marks interrupted runs without replaying them.
+- [x] Integration coverage for isolation, concurrency, failure, timeout, stale IDs and audit reconstruction.
