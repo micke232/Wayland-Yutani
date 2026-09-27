@@ -10,10 +10,8 @@ from wayland.models import TradingMode
 
 
 def test_gateway_is_readonly_and_account_verified():
-    client = SimpleNamespace(
-        connectAsync=AsyncMock(), managedAccounts=lambda: ["DU-FIXTURE"], disconnect=Mock()
-    )
-    settings = Settings(ibkr_account="DU-FIXTURE", account_allowlist=("DU-FIXTURE",))
+    client = SimpleNamespace(connectAsync=AsyncMock(), managedAccounts=lambda: ["DUR123"], disconnect=Mock())
+    settings = Settings(ibkr_account="DUR123", account_allowlist=("DUR123",))
     broker = IbkrBroker(settings, client)
     asyncio.run(broker.connect())
     assert broker.verified
@@ -34,7 +32,7 @@ def test_gateway_is_readonly_and_account_verified():
     ],
 )
 def test_invalid_live_or_unallowlisted_gateway_never_connects(patch):
-    settings = Settings(ibkr_account="DU-FIXTURE", account_allowlist=("DU-FIXTURE",)).model_copy(update=patch)
+    settings = Settings(ibkr_account="DUR123", account_allowlist=("DUR123",)).model_copy(update=patch)
     client = SimpleNamespace(connectAsync=AsyncMock())
     with pytest.raises(ValueError):
         asyncio.run(IbkrBroker(settings, client).connect())
@@ -42,10 +40,8 @@ def test_invalid_live_or_unallowlisted_gateway_never_connects(patch):
 
 
 def test_reported_account_mismatch_disconnects_without_verification():
-    client = SimpleNamespace(
-        connectAsync=AsyncMock(), managedAccounts=lambda: ["DU-OTHER"], disconnect=Mock()
-    )
-    config = Settings(ibkr_account="DU-FIXTURE", account_allowlist=("DU-FIXTURE",))
+    client = SimpleNamespace(connectAsync=AsyncMock(), managedAccounts=lambda: ["DU456"], disconnect=Mock())
+    config = Settings(ibkr_account="DUR123", account_allowlist=("DUR123",))
     broker = IbkrBroker(config, client)
     with pytest.raises(ValueError):
         asyncio.run(broker.connect())

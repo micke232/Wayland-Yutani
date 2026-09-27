@@ -17,6 +17,7 @@ from ..models import (
     TradingMode,
     utcnow,
 )
+from .discovery import observation_account
 
 
 def finite(value: Any) -> Decimal:
@@ -42,7 +43,7 @@ class IbkrBroker:
         if s.mode != TradingMode.PAPER or s.live_enabled:
             raise ValueError("LIVE remains locked")
         if (
-            not s.ibkr_account.startswith("DU")
+            not observation_account(s.ibkr_account)
             or s.ibkr_account not in s.account_allowlist
             or s.ibkr_host not in ("127.0.0.1", "localhost", "::1")
             or s.ibkr_port not in (4002, 7497)

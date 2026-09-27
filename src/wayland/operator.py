@@ -12,6 +12,7 @@ from typing import Any
 
 from .agents import COORDINATOR_ID, REGISTRY
 from .audit import AuditStore, ExecutionLease
+from .broker.discovery import observation_account
 from .config import Settings, load_settings
 from .models import utcnow
 
@@ -278,9 +279,9 @@ class OperatorRuntime:
                     else:
                         raw[key] = value
                 settings = Settings.model_validate_json(json.dumps(raw))
-                if any(not account.startswith("DU") for account in settings.account_allowlist):
+                if any(not observation_account(account) for account in settings.account_allowlist):
                     raise ValueError("Only DU paper accounts are allowed")
-                if settings.ibkr_account and not settings.ibkr_account.startswith("DU"):
+                if settings.ibkr_account and not observation_account(settings.ibkr_account):
                     raise ValueError("Only DU paper accounts are allowed")
                 path = self.root / "config/settings.json"
                 temp = path.with_suffix(".tmp")

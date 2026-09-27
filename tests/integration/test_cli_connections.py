@@ -109,6 +109,10 @@ def test_ibkr_button_opens_official_app_and_enables_observation(tmp_path):
     "accounts,configured,allowed",
     [
         (["DU123"], "", True),
+        (["DUR123"], "", True),
+        (["DUgarbage"], "", False),
+        (["DUR"], "", False),
+        (["DUR123", "U456"], "", False),
         (["U123"], "", False),
         (["DU123", "U456"], "", False),
         (["DU123"], "DU999", False),
@@ -121,7 +125,7 @@ def test_paper_discovery_verifies_reported_accounts(accounts, configured, allowe
     with patch("wayland.broker.discovery.socket.create_connection"):
         if allowed:
             result = asyncio.run(discover(Settings(ibkr_account=configured), lambda: client))
-            assert result["ibkr_account"] == "DU123"
+            assert result["ibkr_account"] == accounts[0]
             assert client.connectAsync.call_args.kwargs["readonly"] is True
         else:
             with pytest.raises(ValueError):

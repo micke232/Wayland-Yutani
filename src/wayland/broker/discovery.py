@@ -4,6 +4,11 @@ import re
 import socket
 
 
+def observation_account(account: str) -> bool:
+    """Accepted DU/DUR account identifiers for read-only observation, not execution proof."""
+    return re.fullmatch(r"DUR?[0-9]+", account) is not None
+
+
 async def discover(settings, client_factory=None):
     if (
         settings.live_enabled
@@ -29,7 +34,7 @@ async def discover(settings, client_factory=None):
                 settings.ibkr_host, port, clientId=settings.ibkr_client_id, readonly=True, timeout=3
             )
             accounts = client.managedAccounts()
-            if not accounts or any(not re.fullmatch(r"DU[0-9]+", a) for a in accounts):
+            if not accounts or any(not observation_account(a) for a in accounts):
                 raise ValueError("Gateway did not report exclusively paper accounts")
             if settings.ibkr_account:
                 if settings.ibkr_account not in accounts:

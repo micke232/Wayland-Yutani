@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wayland-trading"
-version = "0.5.0"
+version = "0.5.1"
 description = "Auditable paper-first trading research with deterministic risk and recovery"
 requires-python = ">=3.12"
 dependencies = ["pydantic>=2.11,<3"]
