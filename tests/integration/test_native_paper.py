@@ -301,6 +301,9 @@ def test_repricing_preserves_model_bounds_and_rejects_changed_setup(engine, chan
         if change == "option_cost":
             quote = market.options[0].model_copy(update={"bid": Decimal("2.4"), "ask": Decimal("2.5")})
             refreshed = refreshed.model_copy(update={"options": (quote,)})
+        from test_data_pipeline import evidence_fixture
+
+        engine.store.set("data:evidence", evidence_fixture(market))
         engine.broker.refresh_before_execution = True
         engine.broker.market_data = AsyncMock(return_value=refreshed)
         service = WaylandService(engine, NS(analyze=AsyncMock(return_value=proposal)))

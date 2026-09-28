@@ -126,3 +126,65 @@ A Gateway permission failure leaves monitoring connected and reconciliation bloc
 Unknown order outcomes require broker reconciliation; never clear the journal to retry.
 Missing broker PnL/FX, external positions/orders and incomplete historical evidence
 block readiness. Keep the local journal across restarts; do not copy another account's state.
+
+## Order-free provider diagnostics
+
+Run `wayland doctor` (or `wayland doctor --json`). It opens a separate read-only
+IBKR connection, checks the configured account allowlist, qualification, quotes,
+historical bars, options and subscribed news. It does not construct an execution
+engine, bind order routing, place/cancel orders or change the trading state.
+The OpenAI check is a real, small structured Codex CLI request using existing login.
+The orchestration check is explicitly a four-request **fixture** smoke test, not
+four real model analyses. The complete sanitized report is saved to
+`~/.wayland/logs/doctor.json`.
+
+`Reconciliation` requires successful broker readback AND a current READY runtime
+reconciliation for the same account. Doctor does not replace reconciliation or
+turn a disconnected/stale runtime into READY. Its NORMAL/SAFE/DEGRADED line is a
+diagnostic assessment; LIVE always remains LOCKED.
+
+Gateway error 321 with a Read-Only message on `reqCompletedOrdersAsync` blocks
+order-history verification. Wayland records the operation, code and a fixed safe
+reason, never the raw SDK error. Inspect Gateway's API settings and the paper
+session; doctor never changes those settings. A timeout is reported as a timeout,
+not assumed to be a missing subscription. Known market-data entitlement codes
+are listed separately. Raw SDK logging is suppressed in doctor.
+
+## Analytical data and entry policy
+
+Independent collectors continue even when account reconciliation fails:
+
+- Market: ORCL bid/ask/last/spread/volume, IBKR source, live/frozen/delayed type,
+  receipt timestamp and regular-session status from IBKR contract schedules.
+  Snapshot timestamps are receipt times, **not guaranteed exchange tick times**.
+  Missing last/volume and unknown session remain explicit. FX failure preserves
+  the stock evidence but blocks entry pricing.
+- Technical: three days of RTH TRADES at five-minute resolution; only closed bars
+  are used. At least 20 consecutive bars in the latest session are required.
+  SMA20, typical-price volume-weighted VWAP, session extrema, rebound and reversal
+  fractions are computed with Decimal in Python. This deliberately prevents
+  entry during the first 100 minutes of a new session until enough bars exist.
+  Historical high/low evidence does not replace the runtime's event detector.
+- Options: IBKR-qualified puts with conId, terms and timestamps. Sampling is
+  bounded to the nearest three strikes of one eligible expiry, plus held legs.
+  Volume/open interest remain null when IBKR snapshots do not supply them.
+  Long-ask minus short-bid pricing supplies deterministic per-unit debit,
+  entry cost and maximum loss in SEK with FX and conservative round-trip fees.
+  A calculable spread is research evidence; native spread routing remains disabled.
+- News: a distinct `reqNewsProviders` / `reqHistoricalNews` feed of ORCL headlines
+  from available subscribed news providers, carrying publisher, article ID,
+  publication/retrieval time and source reference. These are headlines, not full
+  articles or a comprehensive earnings/event calendar. Brokerage messages are
+  never converted into news. Missing/empty news means unavailable, not no catalysts.
+
+Quote/options use the configured freshness limit (default 10s); FX defaults to
+60s. Latest closed OHLCV must be no older than 15 minutes, sourced news no older
+than 24 hours. All ages are checked again when consumed and before new entries.
+Missing news/history, delayed/stale critical data, an unknown/outside regular
+session, or an indeterminate candidate cost blocks new AI ENTER. Position
+protection still goes through the existing RiskEngine. SAFE broker reconciliation
+always takes precedence. History/news may be cached for 60s and chain definitions
+for 15 minutes; original evidence timestamps are retained and cached reads marked.
+
+API references: [IBKR error codes](https://interactivebrokers.github.io/tws-api/message_codes.html)
+and [ib_async endpoint documentation](https://ib-api-reloaded.github.io/ib_async/api.html).

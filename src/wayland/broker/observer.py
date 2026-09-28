@@ -15,6 +15,7 @@ class BrokerObserver:
         self.stop = threading.Event()
         self.thread = None
         self.autonomy = None
+        self.data_task = None
 
     def start(self):
         if self.thread and self.thread.is_alive():
@@ -48,8 +49,45 @@ class BrokerObserver:
         while not self.stop.is_set() and asyncio.get_running_loop().time() < deadline:
             await asyncio.sleep(0.1)
 
+    async def research(self, broker, config):
+        from ..data import DataPipeline
+        from .research import NativeResearch
+
+        cache: dict = {}
+        while not self.stop.is_set():
+            source = NativeResearch(broker)
+            try:
+                data = await DataPipeline(source, config, cache).collect()
+                data["qualification"] = source.qualification
+                data["options_chain"] = source.chain
+                data["broker_diagnostics"] = list(broker.diagnostics)
+                with self.runtime.store() as store:
+                    store.set("data:evidence", data)
+                    store.event(
+                        "data.collected", {"checks": data["checks"], "entry_policy": data["entry_policy"]}
+                    )
+            finally:
+                await source.close()
+            await self.pause(10)
+
     async def sample(self, broker, config):
-        inspection = await broker.inspect()
+        try:
+            inspection = await broker.inspect()
+        except Exception as error:
+            from .diagnostics import diagnostic
+
+            client = getattr(broker, "ib", None)
+            if client is None or not client.isConnected():
+                raise
+            details = diagnostic("inspect positions/open orders/executions", error)
+            inspection = {
+                "execution_ready": False,
+                "verified": False,
+                "diagnostic": details,
+                "reason": details["reason"],
+            }
+            with self.runtime.store() as store:
+                store.event("broker.inspection_failed", details)
         routing = getattr(config, "ibkr_paper_orders", False)
         status = "Connected · paper routing configured" if routing else "Connected · paper read-only"
         if self.autonomy is not None:
@@ -77,8 +115,14 @@ class BrokerObserver:
                 market.fx_timestamp, utcnow(), config.max_fx_age_seconds
             ):
                 raise ValueError("stale quotes")
+            from ..data import assess
+
+            with self.runtime.store() as store:
+                evidence = store.get("data:evidence")
+            data_ready = evidence is not None and assess(evidence, config)["entry_policy"]["allowed"]
             inspection["execution_ready"] = bool(
-                routing
+                data_ready
+                and routing
                 and self.autonomy is not None
                 and self.autonomy.engine.state == "READY"
                 and candidates(market, config, utcnow())
@@ -142,6 +186,8 @@ class BrokerObserver:
                 broker = self.factory(config)
                 try:
                     await broker.connect()
+                    if isinstance(broker, IbkrBroker):
+                        self.data_task = asyncio.create_task(self.research(broker, config))
                     from ..autonomy import AutonomousSession
 
                     try:
@@ -162,6 +208,10 @@ class BrokerObserver:
                         + " · check Gateway login, paper port and account"
                     )
                 finally:
+                    if self.data_task is not None:
+                        self.data_task.cancel()
+                        await asyncio.gather(self.data_task, return_exceptions=True)
+                        self.data_task = None
                     if self.autonomy is not None:
                         await self.autonomy.close()
                         self.autonomy = None

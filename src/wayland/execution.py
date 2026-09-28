@@ -62,6 +62,10 @@ class ExecutionEngine:
         try:
             portfolio = await asyncio.wait_for(self.broker.snapshot(), 15)
         except Exception as error:  # noqa: BLE001 -- fail closed without exposing SDK payloads
+            from .broker.diagnostics import diagnostic
+
+            self.store.event("broker.snapshot_failed", diagnostic("snapshot", error))
+            self.store.set("broker:snapshot_error", diagnostic("snapshot", error))
             self.portfolio = None
             self.set_state(OperatingState.SAFE, ["broker_snapshot_failed:" + type(error).__name__])
             return False

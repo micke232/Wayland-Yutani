@@ -103,3 +103,11 @@ observer's underlying/FX snapshots are not yet a complete options/news feed.
 - [x] Run inspection CLI and isolated broker-free fixture demo.
 - [x] Startup recovery marks interrupted runs without replaying them.
 - [x] Integration coverage for isolation, concurrency, failure, timeout, stale IDs and audit reconstruction.
+
+## Diagnostic data pipeline — 0.8.0
+
+- [x] Identify and safely audit the exact denied broker operation.
+- [x] Independent quote, intraday OHLCV/indicators, qualified options and sourced news collection.
+- [x] Propagate timestamped evidence and explicit provider failures to the existing specialists.
+- [x] Order-free doctor with per-operation diagnostics and fail-closed entry policy.
+- [x] Transformation/failure tests, real service diagnostics, install and feature-branch push.

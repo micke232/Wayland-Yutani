@@ -1,3 +1,3 @@
 """Wayland runtime is independent of development agents and their sessions."""
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"

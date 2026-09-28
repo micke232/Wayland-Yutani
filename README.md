@@ -199,3 +199,8 @@ Fixture runs live under `~/.wayland/data/orchestration-demo/`, separately from n
 runtime runs. Audit records retain the original requests, context references and
 context payloads, start/end times, provider/model, statuses and validated results.
 Interrupted runs are marked on service restart and never silently replayed.
+
+Use `wayland doctor` for order-free connection and data diagnostics, or
+`wayland doctor --json` for a saved, structured report. Each provider is checked
+independently; missing data remains explicit and new entries fail closed.
+See [data sources, freshness rules and diagnostics](docs/OPERATIONS.md#order-free-provider-diagnostics).

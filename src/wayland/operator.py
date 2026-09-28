@@ -133,6 +133,16 @@ class OperatorRuntime:
                     trading["operating_state"] = "RECONCILING"
                     trading["state_reasons"] = ["Paper account connected read-only; native routing disabled"]
                 trading["market"] = observation.get("market")
+        from .data import assess
+
+        evidence = store.get("data:evidence")
+        if evidence:
+            evidence = assess(evidence, config)
+            for key in ("market", "price_history", "indicators", "news", "candidates", "entry_policy"):
+                if key in evidence:
+                    trading[key] = evidence[key]
+            trading["data_quality"] = evidence["checks"]
+            trading["broker_diagnostics"] = evidence.get("broker_diagnostics", [])
         trading["broker_enabled"] = store.get("broker:enabled", False)
         provider = self.connections.snapshot()
         result = {
@@ -375,6 +385,8 @@ class OperatorRuntime:
                 "operating_state",
                 "state_reasons",
                 "news",
+                "data_quality",
+                "entry_policy",
                 "candidates",
                 "price_history",
                 "indicators",

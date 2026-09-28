@@ -169,3 +169,42 @@ independent specialist requests and final synthesis. All four requests overlappe
 its missing evidence and did not create a TradeProposal. This verifies the model
 chain, not market-data quality or broker execution. CLI transport does not expose
 a unique provider response ID; Wayland's own unique request IDs remain authoritative.
+
+## Data pipeline and order-free doctor — 0.8.0
+
+200 automated tests passed. Ruff lint/format and mypy passed (56 source files).
+The installed 0.8.0 wheel also passed the real terminal PTY test (startup, settings,
+navigation and detach). New fixture/SDK-mock coverage includes OHLCV validation
+and deterministic indicators, bid/ask/FX/news transformation, per-leg cost/loss,
+quote/history/options/FX/news expiry, delayed data, independent provider failures,
+empty chains, missing news entitlements, disconnect, and safe error redaction.
+It verifies propagation to specialist contexts and checks entry policy again after
+model latency. Doctor tests fail if submit/cancel is called. Interrupted account
+inspection no longer tears down independent data collection while the socket is up.
+
+Actual service verification on 2026-09-28 (installed `wayland doctor`):
+
+| Check | Observed result | Verification |
+| --- | --- | --- |
+| OpenAI | OK, structured response received | Real Codex CLI model request |
+| Agent orchestration | Four completed isolated requests | Explicit fixture smoke test; no new claim about live specialists |
+| IBKR connection/account/allowlist | OK / PAPER / OK | Real local Gateway, separate read-only client |
+| Completed-order readback | FAIL, error 321, Read-Only API | Real `reqCompletedOrdersAsync`; safe operation/code/reason recorded |
+| ORCL qualification | FAIL, timeout | Real `qualifyContractsAsync(ORCL)` |
+| Quote, OHLCV, options, ORCL news | Unavailable, upstream qualification timeout | Real attempts; successful data transformations verified only with mocks |
+| Market data age | Unavailable | No usable real quote received |
+| Diagnostic operating state / LIVE | SAFE / LOCKED | No change to lock or broker permissions |
+
+A preliminary direct probe also verified the paper connection and reproduced the
+completed-order permission denial; positions/open-orders/executions readback timed
+out. These results do not prove market-data subscriptions are absent: a timeout is
+not an entitlement response. Real headline delivery, OHLCV, option pricing and a
+complete reconciliation are **not** claimed verified. No diagnostic placed or
+cancelled an order. The installed service was restarted only after checking that
+no agent analysis was active. Orchestration infrastructure was not changed; only
+its evidence envelope was extended.
+
+After restart, the real operator persisted `data:evidence` with explicit FAIL
+checks for each unavailable feed, exposed these through its UI snapshot, retained
+SAFE, and recorded `broker:snapshot_error` with operation
+`reqCompletedOrdersAsync`, code 321 and the sanitized Read-Only reason.

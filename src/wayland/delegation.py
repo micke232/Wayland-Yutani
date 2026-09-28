@@ -23,6 +23,15 @@ COMMON = (
     "connected",
     "live",
     "volume",
+    "bid",
+    "ask",
+    "last",
+    "spread",
+    "market_session",
+    "source",
+    "data_type",
+    "session_source",
+    "timestamp_kind",
 )
 SETUP = ("event", "phase", "low", "high", "date", "snapshot_id", "reason", "last_analysis")
 
@@ -45,12 +54,20 @@ class AssignmentPlan(BaseModel):
 
 
 def evidence_for(role_id, context):
-    market = context.get("market") or {}
+    market = context.get("quote") or context.get("market") or {}
     evidence = {
         "market": {k: market[k] for k in COMMON if k in market},
         "operating_state": context.get("operating_state"),
         "state_reasons": context.get("state_reasons"),
     }
+    quality_key = {
+        "wayland:market-analyst": "quote",
+        "wayland:technical-analyst": "history",
+        "wayland:news-analyst": "news",
+        "wayland:options-analyst": "options",
+    }[role_id]
+    evidence["data_quality"] = (context.get("data_quality") or {}).get(quality_key)
+    evidence["entry_policy"] = context.get("entry_policy")
     if role_id == "wayland:technical-analyst":
         setup = context.get("setup") or {}
         evidence["setup"] = {k: setup[k] for k in SETUP if k in setup}
@@ -59,7 +76,7 @@ def evidence_for(role_id, context):
     elif role_id == "wayland:news-analyst":
         evidence["news"] = context.get("news") or []
     elif role_id == "wayland:options-analyst":
-        evidence["market"]["options"] = market.get("options") or []
+        evidence["market"]["options"] = (context.get("market") or {}).get("options") or []
         evidence["candidates"] = context.get("candidates") or []
     return evidence
 

@@ -64,6 +64,35 @@ class WaylandService:
                 "news": list(news),
                 "analysis_id": str(uuid.uuid4()),
             }
+            evidence = self.engine.store.get("data:evidence")
+            if evidence is not None or getattr(self.engine.broker, "refresh_before_execution", False):
+                from .data import assess
+
+                evidence = assess(evidence or {}, self.engine.settings)
+                context.update(
+                    {
+                        k: evidence[k]
+                        for k in ("price_history", "indicators", "news", "entry_policy")
+                        if k in evidence
+                    }
+                )
+                context["quote"] = evidence.get("quote")
+                offered_ids = {candidate.candidate_id for candidate in offered}
+                context["candidates"] = [
+                    c for c in evidence.get("candidates", []) if c["candidate_id"] in offered_ids
+                ]
+                context["data_quality"] = evidence["checks"]
+                if not evidence["entry_policy"]["allowed"]:
+                    self.engine.set_state(
+                        OperatingState.DEGRADED,
+                        ["analytical_data_unavailable:" + ",".join(evidence["entry_policy"]["missing"])],
+                    )
+                    self.engine.store.event(
+                        "strategy.wait",
+                        {"reason": "data_policy", "checks": evidence["checks"]},
+                        snapshot.snapshot_id,
+                    )
+                    return None
             self.engine.store.set("autonomy", {"status": "ANALYZING", "reason": event})
             proposal = await self.provider.analyze(context)
             if proposal is None:
@@ -120,6 +149,15 @@ class WaylandService:
                     proposal.proposal_id,
                 )
                 snapshot = refreshed
+            # News/history may expire while the model is reasoning. Recheck before entry.
+            if proposal.action == Action.ENTER and evidence is not None:
+                from .data import assess
+
+                latest = assess(self.engine.store.get("data:evidence", {}), self.engine.settings)
+                if not latest["entry_policy"]["allowed"]:
+                    return ExecutionResult(
+                        intent_id=None, state="REJECTED", reasons=("analytical_data_unavailable",)
+                    )
             result = await self.engine.execute(proposal, snapshot, candidate)
             self.engine.store.set(
                 "autonomy",

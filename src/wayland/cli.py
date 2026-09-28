@@ -152,6 +152,8 @@ def main() -> None:
     )
     commands.add_parser("service-stop", help="Stop the independent operator service")
     commands.add_parser("service-restart", help="Restart the operator service with the current environment")
+    doctor = commands.add_parser("doctor", help="Order-free provider and data diagnostics")
+    doctor.add_argument("--json", action="store_true")
     commands.add_parser("status", help="Stored operational state, orders, positions and recent audit (JSON)")
     commands.add_parser("demo", help="Run synthetic entry/risk/fill/exit flow in isolated demo databases")
     commands.add_parser("config-example", help="Print safe default settings")
@@ -213,6 +215,16 @@ def main() -> None:
             from .operator import serve
 
             serve(root)
+            return
+        if args.command == "doctor":
+            import logging
+
+            from .doctor import render, run_doctor
+
+            # SDK logs may contain account identifiers; doctor emits sanitized diagnostics only.
+            logging.getLogger("ib_async").setLevel(logging.CRITICAL)
+            report = asyncio.run(run_doctor(root, settings))
+            print(encode(report) if args.json else render(report))
             return
         if args.command in ("runs", "orchestration-demo"):
             from .orchestration import RunJournal, render_run

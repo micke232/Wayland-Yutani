@@ -18,6 +18,7 @@ from ..models import (
     TradingMode,
     utcnow,
 )
+from .diagnostics import BrokerPermissionError, api_diagnostic
 from .discovery import observation_account
 from .routing import PaperRouting
 
@@ -47,6 +48,7 @@ class IbkrBroker:
         self.pnl: Any = None
         self.pnl_time: datetime | None = None
         self.gateway_read_only = False
+        self.diagnostics: list[dict] = []
         self.read_only_at: datetime | None = None
         self.completed_future: Any = None
         self.chains_cache: dict[str, tuple[datetime, list[dict]]] = {}
@@ -82,11 +84,15 @@ class IbkrBroker:
         self.verified = True
 
     def api_error(self, request_id, code, message, *args):
+        entry = api_diagnostic(request_id, code, message)
+        if entry:
+            self.diagnostics.append(entry)
+            self.diagnostics = self.diagnostics[-40:]
         if code == 321 and "read-only" in message.lower():
             self.gateway_read_only = True
             self.read_only_at = utcnow()
             if self.completed_future is not None and not self.completed_future.done():
-                self.completed_future.set_exception(PermissionError("Gateway Read-Only API is enabled"))
+                self.completed_future.set_exception(BrokerPermissionError(BrokerPermissionError.reason))
 
     def bind_store(self, store):
         self.routing = PaperRouting(self, store)
@@ -96,24 +102,37 @@ class IbkrBroker:
             raise ConnectionError("Gateway disconnected")
         async with self.state_lock:
             if completed and self.read_only_at and (utcnow() - self.read_only_at).total_seconds() < 30:
-                raise PermissionError("Gateway Read-Only API is enabled")
+                raise BrokerPermissionError(BrokerPermissionError.reason)
             if completed:
                 self.gateway_read_only = False
-            self.completed_future = (
-                asyncio.ensure_future(self.ib.reqCompletedOrdersAsync(False)) if completed else None
-            )
+            self.completed_future = asyncio.get_running_loop().create_future() if completed else None
             requests = [
                 asyncio.ensure_future(call)
                 for call in (
                     self.ib.reqPositionsAsync(),
                     self.ib.reqAllOpenOrdersAsync(),
                     self.ib.reqExecutionsAsync(),
-                    self.completed_future if completed else asyncio.sleep(0, result=[]),
+                    self.ib.reqCompletedOrdersAsync(False) if completed else asyncio.sleep(0, result=[]),
                 )
             ]
+            group = asyncio.gather(*requests)
             try:
-                return await asyncio.wait_for(asyncio.gather(*requests), 12)
+                if self.completed_future is not None:
+                    done, _ = await asyncio.wait(
+                        (group, self.completed_future), timeout=12, return_when=asyncio.FIRST_COMPLETED
+                    )
+                    if self.completed_future in done:
+                        return self.completed_future.result()  # raises the sanitized denial
+                    if group not in done:
+                        raise TimeoutError()
+                    return group.result()
+                return await asyncio.wait_for(group, 12)
             finally:
+                if self.completed_future is not None and not self.completed_future.done():
+                    self.completed_future.cancel()
+                if not group.done():
+                    group.cancel()
+                await asyncio.gather(group, return_exceptions=True)
                 for request in requests:
                     if not request.done():
                         request.cancel()
